@@ -1,0 +1,28 @@
+# --- Java / Maven ---
+target/
+*.class
+logs/
+*.log
+HELP.md
+
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- IDE / tooling ---
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+.claude/settings.local.json

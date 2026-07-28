@@ -1,0 +1,162 @@
+server:
+  port: 9090
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+      # ------------------------------------------------------------------
+      # CORS is centralised here at the single entry point. Swagger UI is
+      # served same-origin through the gateway (docs use a relative server
+      # URL), so it needs no CORS; this block exists for browser SPA clients
+      # (Angular/React) that call the gateway from a different origin.
+      # allowedOriginPatterns (not "*") so allowCredentials can stay true.
+      # Override the patterns per environment via the config server.
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "${gateway.cors.allowed-origin-patterns}"
+            allowedMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+            allowedHeaders: "*"
+            exposedHeaders: [Authorization, Content-Disposition]
+            allowCredentials: true
+            maxAge: 3600
+      routes:
+        # ---------------- auth-service (IAM) ----------------
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**,/api/users/**,/api/audit-logs/**,/api/util/**
+        - id: auth-service-docs
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth-service/v3/api-docs/**
+          filters:
+            - RewritePath=/auth-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- account-service (Portfolio) ----------------
+        - id: account-service
+          uri: lb://account-service
+          predicates:
+            - Path=/api/accounts/**,/api/collateral-assets/**,/api/allocations/**
+        - id: account-service-docs
+          uri: lb://account-service
+          predicates:
+            - Path=/account-service/v3/api-docs/**
+          filters:
+            - RewritePath=/account-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- contact-service ----------------
+        - id: contact-service
+          uri: lb://contact-service
+          predicates:
+            - Path=/api/contacts/**,/api/ptp/**,/api/borrower-contacts/**
+        - id: contact-service-docs
+          uri: lb://contact-service
+          predicates:
+            - Path=/contact-service/v3/api-docs/**
+          filters:
+            - RewritePath=/contact-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- field-service ----------------
+        - id: field-service
+          uri: lb://field-service
+          predicates:
+            - Path=/api/visits/**,/api/asset-verifications/**
+        - id: field-service-docs
+          uri: lb://field-service
+          predicates:
+            - Path=/field-service/v3/api-docs/**
+          filters:
+            - RewritePath=/field-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- settlement-service ----------------
+        - id: settlement-service
+          uri: lb://settlement-service
+          predicates:
+            - Path=/api/settlements/**,/api/restructuring/**
+        - id: settlement-service-docs
+          uri: lb://settlement-service
+          predicates:
+            - Path=/settlement-service/v3/api-docs/**
+          filters:
+            - RewritePath=/settlement-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- legal-service ----------------
+        - id: legal-service
+          uri: lb://legal-service
+          predicates:
+            - Path=/api/legal/**
+        - id: legal-service-docs
+          uri: lb://legal-service
+          predicates:
+            - Path=/legal-service/v3/api-docs/**
+          filters:
+            - RewritePath=/legal-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- analytics-service ----------------
+        - id: analytics-service
+          uri: lb://analytics-service
+          predicates:
+            - Path=/api/analytics/**
+        - id: analytics-service-docs
+          uri: lb://analytics-service
+          predicates:
+            - Path=/analytics-service/v3/api-docs/**
+          filters:
+            - RewritePath=/analytics-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+        # ---------------- notification-service ----------------
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/notifications/**
+        - id: notification-service-docs
+          uri: lb://notification-service
+          predicates:
+            - Path=/notification-service/v3/api-docs/**
+          filters:
+            - RewritePath=/notification-service/v3/api-docs(?<segment>/?.*), /v3/api-docs$\{segment}
+
+# Aggregated Swagger UI at the gateway: http://localhost:9090/swagger-ui.html
+# The dropdown lets you switch between every service's OpenAPI spec.
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: auth-service
+        url: /auth-service/v3/api-docs
+      - name: account-service
+        url: /account-service/v3/api-docs
+      - name: contact-service
+        url: /contact-service/v3/api-docs
+      - name: field-service
+        url: /field-service/v3/api-docs
+      - name: settlement-service
+        url: /settlement-service/v3/api-docs
+      - name: legal-service
+        url: /legal-service/v3/api-docs
+      - name: analytics-service
+        url: /analytics-service/v3/api-docs
+      - name: notification-service
+        url: /notification-service/v3/api-docs
+
+# Public paths that bypass the gateway JWT global filter.
+# NOTE: the per-service OpenAPI specs are proxied at /<service>/v3/api-docs (see the *-docs
+# routes above). Those paths must be open too, otherwise the aggregated Swagger UI dropdown
+# cannot load each service's spec (the JWT filter would reject the XHR with 401).
+gateway:
+  # Comma-separated CORS origin patterns consumed by spring.cloud.gateway.globalcors above.
+  # Dev default = any localhost port; production should override with explicit https origins.
+  cors:
+    allowed-origin-patterns: "http://localhost:*,https://localhost:*,http://127.0.0.1:*"
+  security:
+    open-paths: >-
+      /api/auth/login,/api/auth/refresh,/api/auth/logout,/api/auth/forgot-password,/api/auth/reset-password,/api/util/,
+      /swagger-ui,/v3/api-docs,/webjars,/actuator,
+      /auth-service/v3/api-docs,/account-service/v3/api-docs,/contact-service/v3/api-docs,
+      /field-service/v3/api-docs,/settlement-service/v3/api-docs,/legal-service/v3/api-docs,
+      /analytics-service/v3/api-docs,/notification-service/v3/api-docs

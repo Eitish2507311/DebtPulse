@@ -1,0 +1,29 @@
+import { useCallback } from 'react';
+import { auditApi } from '../../api/services.js';
+import { usePaged } from '../../hooks/usePaged.js';
+import { PageHeader, ErrorNote } from '../../components/ui.jsx';
+import DataTable from '../../components/DataTable.jsx';
+import { dateTime, titleCase } from '../../utils/format.js';
+
+export default function AuditPage() {
+  const fetcher = useCallback((p) => auditApi.list(p), []);
+  const { page, loading, error, setPage } = usePaged(fetcher);
+
+  const columns = [
+    { key: 'timestamp', header: 'When', render: (r) => dateTime(r.timestamp) },
+    { key: 'userId', header: 'User', render: (r) => <span className="text-mono">{r.userId}</span> },
+    { key: 'action', header: 'Action', render: (r) => <span className="badge-pill s-blue">{titleCase(r.action)}</span> },
+    { key: 'entityType', header: 'Entity', render: (r) => r.entityType },
+    { key: 'recordId', header: 'Record', render: (r) => <span className="text-mono">{r.recordId}</span> },
+    { key: 'sourceService', header: 'Source', render: (r) => r.sourceService || '—' },
+  ];
+
+  return (
+    <>
+      <PageHeader title="Audit Trail" subtitle="Every create, update and decision recorded across the platform" icon="shield-check" />
+      <ErrorNote error={error} />
+      <DataTable columns={columns} page={page} loading={loading} onPageChange={setPage}
+        emptyIcon="shield-check" emptyTitle="No audit entries" />
+    </>
+  );
+}

@@ -1,0 +1,13 @@
+server:
+  port: 8088
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/debtpulse_notification?createDatabaseIfNotExist=true&serverTimezone=UTC
+  flyway:
+    locations: classpath:db/migration
+    schemas: debtpulse_notification
+
+logging:
+  file:
+    name: logs/spring.log

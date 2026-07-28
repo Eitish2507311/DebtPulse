@@ -1,0 +1,26 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/debtpulse_auth?createDatabaseIfNotExist=true&serverTimezone=UTC
+  flyway:
+    locations: classpath:db/migration
+    schemas: debtpulse_auth
+
+logging:
+  file:
+    name: logs/spring.log
+
+# auth-service is the JWT issuer; no outbound Feign clients required.
+
+# Authentication hardening (auth-service only).
+auth:
+  # DP5-10 — temporary account lockout after repeated failed logins.
+  lockout:
+    max-attempts: ${AUTH_LOCKOUT_MAX_ATTEMPTS:5}
+    lock-duration-ms: ${AUTH_LOCKOUT_DURATION_MS:900000}     # 15 minutes
+  # DP5-39 — password-reset controls.
+  password-reset:
+    token-expiry-minutes: ${AUTH_RESET_TOKEN_EXPIRY_MIN:15}
+    max-requests-per-hour: ${AUTH_RESET_MAX_PER_HOUR:5}      # per email address

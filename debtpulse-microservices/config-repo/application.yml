@@ -1,0 +1,138 @@
+# ==========================================================================
+# SHARED configuration imported by every DebtPulse microservice via Config Server.
+# Service-specific overrides live in <service-name>.yml in this same folder.
+# ==========================================================================
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+
+# JWT signing secret shared between auth-service (issuer) and api-gateway (validator).
+# Access-token validity: 3 hours (10,800,000 ms). Idle-session logout and refresh-token
+# rotation (P1) will layer server-side revocation on top of this longer-lived access token.
+# NOTE: for production the secret must come from an env var / secret manager, not this file.
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiry-ms: ${JWT_EXPIRY_MS:10800000}          # access token: 3 hours
+  refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}   # refresh token: 7 days
+
+# Server-side session controls (auth-service). Idle sessions can't be refreshed past this window.
+session:
+  idle-timeout-ms: ${SESSION_IDLE_TIMEOUT_MS:1800000}     # 30 minutes of inactivity
+
+# MySQL credentials shared across services (each service owns its own SCHEMA).
+spring:
+  datasource:
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    out-of-order: true
+    validate-on-migrate: false
+  threads:
+    virtual:
+      enabled: true
+
+# Actuator + circuit-breaker health details
+management:
+  endpoints:
+    web:
+      exposure:
+        # 'prometheus' lights up automatically once micrometer-registry-prometheus is on the
+        # classpath (online-only jar); listing it here is a no-op until then.
+        include: health,info,metrics,circuitbreakers,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true              # exposes /actuator/health/liveness and /readiness (k8s-style)
+      # This config is shared by every service; some (gateway, eureka, config-server) have no
+      # DataSource/circuit-breaker contributors. Don't fail startup when a listed contributor is
+      # absent — it's simply omitted from that service's readiness group.
+      validate-group-membership: false
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          # Ready to serve traffic only when the DB and downstream circuit breakers are healthy
+          # (on services that have them; absent contributors are ignored per the setting above).
+          include: readinessState,db,circuitBreakers
+  health:
+    circuitbreakers:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  info:
+    env:
+      enabled: true
+  # Distributed tracing knob — correlation ids (CorrelationIdFilter, P2) already flow across services;
+  # add micrometer-tracing-bridge-otel + an exporter (online) to ship spans to a collector.
+  tracing:
+    sampling:
+      probability: 1.0
+
+# Springdoc / Swagger UI defaults
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    use-root-path: true
+  api-docs:
+    path: /v3/api-docs
+
+# Resilience4j defaults for inter-service (Feign) circuit breakers
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+    instances:
+      authClient: { base-config: default }
+      accountClient: { base-config: default }
+      contactClient: { base-config: default }
+      notificationClient: { base-config: default }
+      fieldClient: { base-config: default }
+      settlementClient: { base-config: default }
+      legalClient: { base-config: default }
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+
+feign:
+  circuitbreaker:
+    enabled: true
+
+logging:
+  level:
+    com.debtpulse: INFO
+    org.springframework.security: WARN
+  pattern:
+    # [%X{correlationId}] ties every log line to its end-to-end request trace (set by CorrelationIdFilter).
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] [%X{correlationId:-}] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] [%X{correlationId:-}] %-5level %logger{36} - %msg%n"
+
+server:
+  error:
+    include-message: always

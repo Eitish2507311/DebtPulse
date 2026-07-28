@@ -1,0 +1,15 @@
+server:
+  port: 8087
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/debtpulse_analytics?createDatabaseIfNotExist=true&serverTimezone=UTC
+  flyway:
+    locations: classpath:db/migration
+    schemas: debtpulse_analytics
+
+logging:
+  file:
+    name: logs/spring.log
+
+# analytics-service aggregates metrics from other services over Feign + Resilience4j.
