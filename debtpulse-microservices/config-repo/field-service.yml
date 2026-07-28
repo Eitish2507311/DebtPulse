@@ -1,0 +1,13 @@
+server:
+  port: 8084
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/debtpulse_field?createDatabaseIfNotExist=true&serverTimezone=UTC
+  flyway:
+    locations: classpath:db/migration
+    schemas: debtpulse_field
+
+logging:
+  file:
+    name: logs/spring.log

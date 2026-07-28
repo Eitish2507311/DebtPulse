@@ -1,0 +1,45 @@
+// Mirrors the backend's 9 roles and the RBAC each screen needs.
+export const ROLES = {
+  ADMIN: 'ADMIN',
+  COLLECTIONS_AGENT: 'COLLECTIONS_AGENT',
+  FIELD_OFFICER: 'FIELD_OFFICER',
+  LEGAL_OFFICER: 'LEGAL_OFFICER',
+  SETTLEMENT_OFFICER: 'SETTLEMENT_OFFICER',
+  L1_APPROVER: 'L1_APPROVER',
+  L2_APPROVER: 'L2_APPROVER',
+  L3_APPROVER: 'L3_APPROVER',
+  PORTFOLIO_MANAGER: 'PORTFOLIO_MANAGER',
+};
+
+export const APPROVERS = [ROLES.L1_APPROVER, ROLES.L2_APPROVER, ROLES.L3_APPROVER];
+export const ALL = Object.values(ROLES);
+
+export const ROLE_LABELS = {
+  ADMIN: 'Administrator',
+  COLLECTIONS_AGENT: 'Collections Agent',
+  FIELD_OFFICER: 'Field Officer',
+  LEGAL_OFFICER: 'Legal Officer',
+  SETTLEMENT_OFFICER: 'Settlement Officer',
+  L1_APPROVER: 'L1 Approver',
+  L2_APPROVER: 'L2 Approver',
+  L3_APPROVER: 'L3 Approver',
+  PORTFOLIO_MANAGER: 'Portfolio Manager',
+};
+
+// Which roles may VIEW each route (matches the controllers' @PreAuthorize sets).
+export const ACCESS = {
+  dashboard: ALL,
+  portfolio: [ROLES.ADMIN, ROLES.COLLECTIONS_AGENT, ROLES.PORTFOLIO_MANAGER],
+  collateral: [ROLES.ADMIN, ROLES.FIELD_OFFICER, ROLES.PORTFOLIO_MANAGER],
+  allocations: [ROLES.ADMIN, ROLES.COLLECTIONS_AGENT, ROLES.PORTFOLIO_MANAGER],
+  contact: [ROLES.ADMIN, ROLES.COLLECTIONS_AGENT, ROLES.PORTFOLIO_MANAGER],
+  field: [ROLES.ADMIN, ROLES.FIELD_OFFICER, ROLES.PORTFOLIO_MANAGER],
+  settlement: [ROLES.ADMIN, ROLES.SETTLEMENT_OFFICER, ROLES.PORTFOLIO_MANAGER, ...APPROVERS],
+  legal: [ROLES.ADMIN, ROLES.LEGAL_OFFICER, ROLES.PORTFOLIO_MANAGER],
+  analytics: [ROLES.ADMIN, ROLES.PORTFOLIO_MANAGER],
+  notifications: ALL,
+  admin: [ROLES.ADMIN],
+  audit: [ROLES.ADMIN, ROLES.PORTFOLIO_MANAGER],
+};
+
+export const hasAny = (role, allowed) => !!role && allowed.includes(role);

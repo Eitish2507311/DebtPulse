@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: api-gateway
+  # Bootstrap all remaining config (routes, port, swagger) from the Config Server.
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

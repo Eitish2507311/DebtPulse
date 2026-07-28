@@ -1,0 +1,12 @@
+target/
+*.class
+logs/
+*.log
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+HELP.md

@@ -1,0 +1,21 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          # Serve config from the local config-repo folder. Both relative paths are
+          # listed so it works whether you launch from the module dir or the repo root.
+          search-locations: file:./config-repo,file:../config-repo,file:../../config-repo
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
