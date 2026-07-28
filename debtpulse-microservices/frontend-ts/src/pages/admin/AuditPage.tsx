@@ -12,7 +12,9 @@ export default function AuditPage() {
 
   const columns: Column<AuditLog>[] = [
     { key: 'timestamp', header: 'When', render: (r) => dateTime(r.timestamp) },
-    { key: 'userId', header: 'User', render: (r) => <span className="text-mono">{r.userId}</span> },
+    // Open/permitAll actions (login, logout, refresh, forgot-password) have no authenticated actor,
+    // so userId is null — fall back to the entity id (the real/attempted account) instead of blank.
+    { key: 'userId', header: 'User', render: (r) => <span className="text-mono">{r.userId || r.recordId || '—'}</span> },
     { key: 'action', header: 'Action', render: (r) => <span className="badge-pill s-blue">{titleCase(r.action)}</span> },
     { key: 'entityType', header: 'Entity', render: (r) => r.entityType },
     { key: 'recordId', header: 'Record', render: (r) => <span className="text-mono">{r.recordId}</span> },

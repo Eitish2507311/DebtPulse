@@ -92,12 +92,13 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     @Transactional
-    public void logout(String rawRefreshToken) {
-        store.findByHash(sha256(rawRefreshToken)).ifPresent(rt -> {
+    public String logout(String rawRefreshToken) {
+        // Idempotent — an unknown/already-revoked token still returns success (userId null).
+        return store.findByHash(sha256(rawRefreshToken)).map(rt -> {
             store.revokeSession(rt.getSessionId());
             log.info("Logout: session {} revoked for user {}", rt.getSessionId(), rt.getUserId());
-        });
-        // Idempotent — an unknown/already-revoked token still returns success.
+            return rt.getUserId();
+        }).orElse(null);
     }
 
     // ---- helpers ----

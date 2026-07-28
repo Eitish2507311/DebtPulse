@@ -46,7 +46,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Auditable(action = "LOGIN", entity = "User", entityId = "#result?.userId()")
+    // Success → the real user id; failure (bad password / locked / inactive all throw before a
+    // result exists) → the attempted email, which is the useful signal for spotting brute-force.
+    @Auditable(action = "LOGIN", entity = "User", entityId = "#result != null ? #result.userId() : #email")
     public AuthResponse login(String email, String password) {
         log.info("Login attempt for: {}", email);
 
@@ -112,9 +114,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Auditable(action = "LOGOUT", entity = "User")
-    public void logout(String refreshToken) {
-        tokenService.logout(refreshToken);
+    // Logout is an open path (no propagated JWT identity), so the actor is null; instead resolve the
+    // affected user id from the refresh token and expose it as the audited entityId.
+    @Auditable(action = "LOGOUT", entity = "User", entityId = "#result")
+    public String logout(String refreshToken) {
+        return tokenService.logout(refreshToken);
     }
 
     private AuthResponse toResponse(String message, IssuedTokens t) {

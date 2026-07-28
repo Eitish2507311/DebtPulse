@@ -1,13 +1,9 @@
 package com.debtpulse.auth.service.impl;
 
-import com.debtpulse.auth.entity.User;
-import com.debtpulse.auth.feign.NotificationClient;
-import com.debtpulse.auth.feign.dto.NotificationRequest;
 import com.debtpulse.auth.repository.UserRepository;
 import com.debtpulse.auth.service.PasswordResetService;
 import com.debtpulse.auth.service.support.ForgotPasswordRateLimiter;
 import com.debtpulse.common.audit.Auditable;
-import com.debtpulse.common.enums.NotifCategory;
 import com.debtpulse.common.enums.UserStatus;
 import com.debtpulse.auth.exception.BusinessRuleException;
 import com.debtpulse.auth.exception.RateLimitExceededException;
@@ -32,24 +28,23 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final UserRepository userRepo;
     private final PasswordEncoder encoder;
     private final ForgotPasswordRateLimiter rateLimiter;
-    private final NotificationClient notificationClient;
 
     /** DP5-39 — reset-token validity window, in minutes (configurable, default 15). */
     private final long tokenExpiryMinutes;
 
     public PasswordResetServiceImpl(UserRepository userRepo, PasswordEncoder encoder,
                                     ForgotPasswordRateLimiter rateLimiter,
-                                    NotificationClient notificationClient,
                                     @Value("${auth.password-reset.token-expiry-minutes:15}") long tokenExpiryMinutes) {
         this.userRepo = userRepo;
         this.encoder = encoder;
         this.rateLimiter = rateLimiter;
-        this.notificationClient = notificationClient;
         this.tokenExpiryMinutes = tokenExpiryMinutes;
     }
 
     @Override
-    @Auditable(action = "PASSWORD_RESET_REQUEST", entity = "User")
+    // entityId is the attempted email (available on both outcomes). It is logged regardless of whether
+    // the email exists, so it does NOT create an "email exists?" side channel in the audit trail.
+    @Auditable(action = "PASSWORD_RESET_REQUEST", entity = "User", entityId = "#email")
     public Map<String, String> forgotPassword(String email) {
         // DP5-39: throttle by email BEFORE any lookup, so the limit can't be used to enumerate
         // accounts and a burst of requests can't be used to brute-force / spam a mailbox.
@@ -72,30 +67,16 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             user.setResetToken(token);
             user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(tokenExpiryMinutes));
             userRepo.save(user);
-            // Deliver the token strictly out-of-band (never in the API response). Best-effort:
-            // a delivery failure must not change the caller-visible response, so it can't be used
-            // to probe whether the email exists.
-            deliverResetToken(user, token);
+            // DEV-ONLY: the reset token is returned directly in the response (no out-of-band delivery).
+            // WARNING: this is an account-takeover path — anyone who can call this endpoint gets the
+            // token to reset that account's password. Acceptable ONLY for a local/dev build.
+            res.put("resetToken", token);
             log.info("Password reset token issued for {}", email);
         });
-        // Always the same generic message, whether or not the email matched an ACTIVE account.
-        res.put("message", "If the email exists, a password reset link has been sent.");
+        // Always the same message to avoid leaking which emails exist.
+        res.put("message", "If the email exists, a reset token has been issued (valid "
+                + tokenExpiryMinutes + " minutes).");
         return res;
-    }
-
-    /** Sends the reset token to the user via notification-service ({@code SECURITY} category). */
-    private void deliverResetToken(User user, String token) {
-        try {
-            String message = "Your DebtPulse password reset token is: " + token
-                    + " (valid for " + tokenExpiryMinutes + " minutes). "
-                    + "If you did not request this, please ignore this message.";
-            notificationClient.notify(new NotificationRequest(
-                    user.getUserId(), message, NotifCategory.SECURITY.name()));
-        } catch (Exception e) {
-            // Swallow — delivery is best-effort and must never leak email existence or fail the request.
-            log.warn("Failed to dispatch password-reset notification for user {}: {}",
-                    user.getUserId(), e.getMessage());
-        }
     }
 
     @Override

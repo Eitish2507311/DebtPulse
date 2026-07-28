@@ -21,6 +21,9 @@ public interface TokenService {
     /** Validate + rotate a refresh token, returning a new pair (old token is revoked). */
     IssuedTokens refresh(String rawRefreshToken);
 
-    /** End the session the refresh token belongs to (idempotent). */
-    void logout(String rawRefreshToken);
+    /**
+     * End the session the refresh token belongs to (idempotent).
+     * @return the id of the user the token belonged to, or {@code null} if the token was unknown.
+     */
+    String logout(String rawRefreshToken);
 }

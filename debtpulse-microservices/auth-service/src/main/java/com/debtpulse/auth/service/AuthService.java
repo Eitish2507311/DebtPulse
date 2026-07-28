@@ -14,5 +14,6 @@ public interface AuthService {
     AuthResponse refresh(String refreshToken);
 
     /** End the session the refresh token belongs to. */
-    void logout(String refreshToken);
+    /** Revoke the session; returns the affected user id (for auditing) or {@code null} if unknown. */
+    String logout(String refreshToken);
 }
