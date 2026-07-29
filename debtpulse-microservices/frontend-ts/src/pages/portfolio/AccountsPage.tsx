@@ -8,6 +8,7 @@ import { PageHeader, ErrorNote } from '../../components/ui';
 import DataTable from '../../components/DataTable';
 import FormModal from '../../components/FormModal';
 import Field from '../../components/Field';
+import SearchableSelect from '../../components/SearchableSelect';
 import { ENUMS, bucketClass, statusClass } from '../../utils/enums';
 import { inr, num, titleCase } from '../../utils/format';
 import type { Account, Column } from '../../types';
@@ -19,7 +20,6 @@ export default function AccountsPage() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [acctId, setAcctId] = useState('');
-  const openAccount = () => { const v = acctId.trim(); if (v) navigate(`/portfolio/${v}`); };
 
   interface ImportResult { importedCount: number; errorCount: number; errors?: string[] }
   const [showImport, setShowImport] = useState(false);
@@ -66,12 +66,12 @@ export default function AccountsPage() {
       <Row className="g-2 mb-3 align-items-end">
         <Col sm={6} md={3}>
           <Form.Label className="small text-muted mb-1">Open by Account ID</Form.Label>
-          <div className="d-flex gap-1">
-            <Form.Control size="sm" placeholder="ACC-…" value={acctId}
-              onChange={(e) => setAcctId(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') openAccount(); }} />
-            <Button size="sm" variant="outline-primary" onClick={openAccount}>Open</Button>
-          </div>
+          <SearchableSelect placeholder="Type or pick an Account ID…" value={acctId}
+            loadOptions={async () => {
+              const { data } = await accountApi.list({ page: 0, size: 200 });
+              return ((data.content || []) as Account[]).map((a) => ({ value: a.accountId, label: a.borrowerName }));
+            }}
+            onChange={(v) => { setAcctId(v); navigate(`/portfolio/${v}`); }} />
         </Col>
         <Col sm={6} md={2}>
           <Form.Label className="small text-muted mb-1">Agent ID</Form.Label>
