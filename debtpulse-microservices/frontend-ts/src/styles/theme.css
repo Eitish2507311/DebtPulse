@@ -147,7 +147,7 @@ a:hover { color: var(--dp-blue-800); }
 }
 .sidebar .brand {
   height: var(--dp-topbar-h); display: flex; align-items: center; gap: .6rem; padding: 0 1.2rem;
-  color: #fff; font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em;
+  color: #fff; font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; cursor: pointer;
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .sidebar .brand .dot {

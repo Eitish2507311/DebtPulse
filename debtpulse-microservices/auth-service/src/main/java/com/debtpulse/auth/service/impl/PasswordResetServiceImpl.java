@@ -1,5 +1,6 @@
 package com.debtpulse.auth.service.impl;
 
+import com.debtpulse.auth.entity.User;
 import com.debtpulse.auth.repository.UserRepository;
 import com.debtpulse.auth.service.PasswordResetService;
 import com.debtpulse.auth.service.support.ForgotPasswordRateLimiter;

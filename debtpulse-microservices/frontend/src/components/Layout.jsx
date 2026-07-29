@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { Dropdown } from 'react-bootstrap';
+import { setUnread } from '../store/notificationsSlice.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ACCESS, ROLE_LABELS, hasAny } from '../auth/roles.js';
 import { notificationApi } from '../api/services.js';
@@ -37,18 +39,20 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [unread, setUnread] = useState(0);
+  // Notification badge count comes from the Redux store (the app's one Redux-managed slice).
+  const unread = useSelector((s) => s.notifications.unread);
+  const dispatch = useDispatch();
 
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
   useEffect(() => {
     let alive = true;
     const load = () => notificationApi.unreadCount()
-      .then((r) => alive && setUnread(r.data.unreadCount || 0)).catch(() => {});
+      .then((r) => alive && dispatch(setUnread(r.data.unreadCount || 0))).catch(() => {});
     load();
     const t = setInterval(load, 30000);
     return () => { alive = false; clearInterval(t); };
-  }, [location.pathname]);
+  }, [location.pathname, dispatch]);
 
   const crumb = TITLES[location.pathname]
     || Object.entries(TITLES).find(([p]) => location.pathname.startsWith(p))?.[1]
@@ -59,7 +63,11 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="brand"><span className="dot" /> DebtPulse</div>
+        <div className="brand" role="button" tabIndex={0} title="Go to dashboard"
+             onClick={() => navigate('/dashboard')}
+             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/dashboard'); }}>
+          <span className="dot" /> DebtPulse
+        </div>
         <nav className="nav-scroll">
           {visible.map((n, i) => n.section
             ? <div key={`s${i}`} className="nav-section">{n.section}</div>

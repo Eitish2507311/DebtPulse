@@ -25,6 +25,7 @@ import com.debtpulse.legal.repository.CourtHearingRepository;
 import com.debtpulse.legal.repository.LegalCaseRepository;
 import com.debtpulse.legal.repository.RecoveryOrderRepository;
 import com.debtpulse.legal.service.LegalService;
+import com.debtpulse.legal.service.LegalStatusPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -112,7 +113,11 @@ public class LegalServiceImpl implements LegalService {
         if (req.filingDate() != null) legalCase.setFilingDate(req.filingDate());
         if (req.courtName() != null) legalCase.setCourtName(req.courtName());
         if (req.caseNumber() != null) legalCase.setCaseNumber(req.caseNumber());
-        if (req.status() != null) legalCase.setStatus(req.status());
+        if (req.status() != null) {
+            // Enforce the case lifecycle — reject illegal jumps (e.g. FILED → SETTLED).
+            LegalStatusPolicy.assertCaseTransition(legalCase.getStatus(), req.status());
+            legalCase.setStatus(req.status());
+        }
         LegalCase saved = caseRepo.save(legalCase);
         log.info("Legal case updated id={} status={}", saved.getCaseId(), saved.getStatus());
         audit("CASE_UPDATED", "LegalCase", saved.getCaseId());
@@ -190,6 +195,8 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public RecoveryOrderDto updateOrderStatus(String id, com.debtpulse.common.enums.OrderStatus status) {
         RecoveryOrder order = findOrder(id);
+        // Enforce the order lifecycle — reject illegal jumps (e.g. ISSUED → EXECUTED).
+        LegalStatusPolicy.assertOrderTransition(order.getStatus(), status);
         order.setStatus(status);
         RecoveryOrder saved = orderRepo.save(order);
         log.info("Recovery order id={} status -> {}", id, status);

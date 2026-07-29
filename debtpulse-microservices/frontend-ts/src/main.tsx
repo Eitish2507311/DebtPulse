@@ -4,21 +4,25 @@ import { BrowserRouter } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './styles/theme.css';
+import { Provider } from 'react-redux';
 import App from './App';
+import { store } from './store';
 import { AuthProvider } from './auth/AuthContext';
 import { ToastProvider } from './components/ToastHost';
 import { PreferencesProvider } from './components/Preferences';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <PreferencesProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ToastProvider>
-      </PreferencesProvider>
-    </BrowserRouter>
+    <Provider store={store}>
+      <BrowserRouter>
+        <PreferencesProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </ToastProvider>
+        </PreferencesProvider>
+      </BrowserRouter>
+    </Provider>
   </React.StrictMode>,
 );
