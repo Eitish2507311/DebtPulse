@@ -34,8 +34,8 @@ public interface NotificationService {
     /** Mark one of the user's notifications as READ. */
     NotificationDto markRead(String userId, String notificationId);
 
-    /** Mark one of the user's notifications as DISMISSED. */
-    NotificationDto dismiss(String userId, String notificationId);
+    /** Dismiss (delete) one of the user's notifications so it is cleared from their history. */
+    void dismiss(String userId, String notificationId);
 
     /** Mark all of the user's UNREAD notifications as READ; returns how many changed. */
     long markAllRead(String userId);

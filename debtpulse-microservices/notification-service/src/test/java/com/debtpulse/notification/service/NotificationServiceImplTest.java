@@ -93,6 +93,31 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    void dismiss_deletesTheNotification() {
+        Notification n = Notification.builder()
+                .notificationId("NOT-1").userId("USR-002")
+                .message("m").category(NotifCategory.PTP).status(NotifStatus.UNREAD).build();
+        when(repo.findById("NOT-1")).thenReturn(Optional.of(n));
+
+        service().dismiss("USR-002", "NOT-1");
+
+        // Dismiss clears it from history entirely.
+        verify(repo).delete(n);
+    }
+
+    @Test
+    void dismiss_otherUsersNotification_throwsAndDoesNotDelete() {
+        Notification n = Notification.builder()
+                .notificationId("NOT-9").userId("USR-999")
+                .message("m").category(NotifCategory.PTP).status(NotifStatus.UNREAD).build();
+        when(repo.findById("NOT-9")).thenReturn(Optional.of(n));
+
+        assertThatThrownBy(() -> service().dismiss("USR-002", "NOT-9"))
+                .isInstanceOf(UnauthorizedActionException.class);
+        verify(repo, never()).delete(any(Notification.class));
+    }
+
+    @Test
     void unreadCount_delegatesToRepository() {
         when(repo.countByUserIdAndStatus("USR-002", NotifStatus.UNREAD)).thenReturn(3L);
         assertThat(service().unreadCount("USR-002")).isEqualTo(3L);

@@ -69,9 +69,10 @@ public class NotificationController {
     }
 
     @PatchMapping("/{id}/dismiss")
-    @Operation(summary = "Dismiss a notification")
-    public ResponseEntity<NotificationDto> dismiss(@PathVariable String id) {
-        return ResponseEntity.ok(notificationService.dismiss(AuthContext.currentUserId(), id));
+    @Operation(summary = "Dismiss a notification — clears it from the user's history")
+    public ResponseEntity<Void> dismiss(@PathVariable String id) {
+        notificationService.dismiss(AuthContext.currentUserId(), id);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/read-all")

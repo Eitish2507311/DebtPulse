@@ -79,12 +79,12 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public NotificationDto dismiss(String userId, String notificationId) {
+    public void dismiss(String userId, String notificationId) {
+        // Dismiss = remove from the user's history entirely (the dismiss action itself is audited
+        // at the controller boundary, so there is still a trail of who cleared what).
         Notification n = findOwned(userId, notificationId);
-        n.setStatus(NotifStatus.DISMISSED);
-        Notification saved = repo.save(n);
-        log.info("Notification DISMISSED: id={} user={}", notificationId, userId);
-        return mapper.toDto(saved);
+        repo.delete(n);
+        log.info("Notification dismissed (cleared) id={} user={}", notificationId, userId);
     }
 
     @Override
