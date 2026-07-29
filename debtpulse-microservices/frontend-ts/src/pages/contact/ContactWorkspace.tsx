@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { PageHeader, ErrorNote, StatusBadge } from '../../components/ui';
 import DataTable from '../../components/DataTable';
 import FormModal from '../../components/FormModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import Field from '../../components/Field';
 import { useToast } from '../../components/ToastHost';
 import { ENUMS } from '../../utils/enums';
@@ -37,8 +38,9 @@ function AccountFilter({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 function ContactsTab({ canWrite }: { canWrite: boolean }) {
-  const [acc, setAcc] = useState('');
-  const filters = acc ? { accountId: acc } : {};
+  const [f, setF] = useState<{ accountId: string; agentId: string }>({ accountId: '', agentId: '' });
+  const onFilter = (name: string, value: string) => setF((s) => ({ ...s, [name]: value }));
+  const filters = Object.fromEntries(Object.entries(f).filter(([, v]) => v && v.trim()));
   const fetcher = useCallback((p: Record<string, unknown>) => contactApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged<ContactAttempt>(fetcher, { filters });
   const [show, setShow] = useState(false);
@@ -52,14 +54,17 @@ function ContactsTab({ canWrite }: { canWrite: boolean }) {
     { key: 'notes', header: 'Notes', render: (r) => r.notes || '—' },
   ];
   return (<>
-    <div className="d-flex justify-content-between align-items-center">
-      <AccountFilter value={acc} onChange={setAcc} />
-      {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />Log contact</Button>}
-    </div>
+    <Row className="g-2 mb-3 align-items-end">
+      <Col sm={6} md={4}><Field label="Filter by Account ID" name="accountId" value={f.accountId} onChange={onFilter} /></Col>
+      <Col sm={6} md={4}><Field label="Filter by Agent ID" name="agentId" value={f.agentId} onChange={onFilter} /></Col>
+      <Col md={4} className="text-md-end">
+        {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />Log contact</Button>}
+      </Col>
+    </Row>
     <ErrorNote error={error} />
     <DataTable<ContactAttempt> columns={columns} page={page} loading={loading} onPageChange={setPage} emptyIcon="telephone" emptyTitle="No contact attempts" />
     <FormModal show={show} title="Log Contact Attempt" submitLabel="Log contact"
-      initial={{ accountId: acc || '', channel: '', outcome: '', notes: '' }}
+      initial={{ accountId: f.accountId || '', channel: '', outcome: '', notes: '' }}
       onClose={() => setShow(false)} onSaved={reload} onSubmit={(v) => contactApi.create(v)}>
       {(v, set, errs) => (<>
         <Field label="Account ID" name="accountId" value={v.accountId} onChange={set} error={errs.accountId} required />
@@ -82,6 +87,7 @@ function PtpTab({ canWrite }: { canWrite: boolean }) {
   const [show, setShow] = useState(false);
   const [pay, setPay] = useState<Ptp | null>(null);
   const [resched, setResched] = useState<Ptp | null>(null);
+  const [edit, setEdit] = useState<Ptp | null>(null);
 
   const columns: Column<Ptp>[] = [
     { key: 'ptpId', header: 'PTP', render: (r) => <span className="text-mono">{r.ptpId}</span> },
@@ -93,6 +99,7 @@ function PtpTab({ canWrite }: { canWrite: boolean }) {
     { key: '_a', header: '', render: (r) => canWrite ? (
       <Dropdown align="end"><Dropdown.Toggle size="sm" variant="light">Actions</Dropdown.Toggle>
         <Dropdown.Menu>
+          <Dropdown.Item onClick={() => setEdit(r)}>Edit</Dropdown.Item>
           <Dropdown.Item onClick={() => setPay(r)}>Record payment</Dropdown.Item>
           <Dropdown.Item onClick={() => setResched(r)}>Reschedule</Dropdown.Item>
         </Dropdown.Menu>
@@ -132,13 +139,33 @@ function PtpTab({ canWrite }: { canWrite: boolean }) {
       onSubmit={async (v) => { await ptpApi.reschedule(resched!.ptpId, v.commitmentDate); toast.success('PTP rescheduled'); }}>
       {(v, set, errs) => <Field label="New Commitment Date" name="commitmentDate" type="date" value={v.commitmentDate} onChange={set} error={errs.commitmentDate} required />}
     </FormModal>
+
+    <FormModal show={!!edit} title={`Edit PTP ${edit?.ptpId || ''}`} submitLabel="Save changes"
+      initial={edit ? { ptpDate: edit.ptpDate, ptpAmount: edit.ptpAmount, commitmentDate: edit.commitmentDate } : {}}
+      onClose={() => setEdit(null)} onSaved={reload}
+      onSubmit={(v) => ptpApi.update(edit!.ptpId, { accountId: edit!.accountId, agentId: edit!.agentId, ...v, ptpAmount: Number(v.ptpAmount) })}>
+      {(v, set, errs) => (<Row>
+        <Col md={4}><Field label="PTP Date" name="ptpDate" type="date" value={v.ptpDate} onChange={set} error={errs.ptpDate} required /></Col>
+        <Col md={4}><Field label="Amount" name="ptpAmount" type="number" min="0" value={v.ptpAmount} onChange={set} error={errs.ptpAmount} required /></Col>
+        <Col md={4}><Field label="Commitment Date" name="commitmentDate" type="date" value={v.commitmentDate} onChange={set} error={errs.commitmentDate} required /></Col>
+      </Row>)}
+    </FormModal>
   </>);
 }
 
 function BorrowerTab({ canWrite }: { canWrite: boolean }) {
+  const toast = useToast();
   const fetcher = useCallback((p: Record<string, unknown>) => borrowerContactApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged<BorrowerContact>(fetcher);
   const [show, setShow] = useState(false);
+  const [edit, setEdit] = useState<BorrowerContact | null>(null);
+  const [del, setDel] = useState<BorrowerContact | null>(null);
+
+  const doDelete = async () => {
+    if (!del) return;
+    try { await borrowerContactApi.remove(del.contactRecordId); toast.success('Contact deleted'); setDel(null); reload(); }
+    catch { toast.error('Could not delete contact'); }
+  };
 
   const columns: Column<BorrowerContact>[] = [
     { key: 'accountId', header: 'Account', render: (r) => <span className="text-mono">{r.accountId}</span> },
@@ -147,6 +174,12 @@ function BorrowerTab({ canWrite }: { canWrite: boolean }) {
     { key: 'phone', header: 'Phone' },
     { key: 'relationship', header: 'Relationship', render: (r) => r.relationship || '—' },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge value={r.status} /> },
+    { key: '_a', header: '', render: (r) => canWrite ? (
+      <div className="d-flex gap-1 justify-content-end">
+        <Button size="sm" variant="light" title="Edit" onClick={() => setEdit(r)}><i className="bi bi-pencil" /></Button>
+        <Button size="sm" variant="light" className="text-danger" title="Delete" onClick={() => setDel(r)}><i className="bi bi-trash" /></Button>
+      </div>
+    ) : null },
   ];
   return (<>
     <div className="d-flex justify-content-end mb-2">
@@ -167,5 +200,23 @@ function BorrowerTab({ canWrite }: { canWrite: boolean }) {
         </Row>
       </>)}
     </FormModal>
+
+    <FormModal show={!!edit} title="Edit Borrower Contact" submitLabel="Save changes"
+      initial={edit ? { contactType: edit.contactType, name: edit.name, phone: edit.phone,
+        relationship: edit.relationship, status: edit.status } : {}}
+      onClose={() => setEdit(null)} onSaved={reload}
+      onSubmit={(v) => borrowerContactApi.update(edit!.contactRecordId, v)}>
+      {(v, set, errs) => (<Row>
+        <Col md={6}><Field label="Contact Type" name="contactType" type="select" options={ENUMS.BorrowerContactType} value={v.contactType} onChange={set} error={errs.contactType} required /></Col>
+        <Col md={6}><Field label="Name" name="name" value={v.name} onChange={set} error={errs.name} required /></Col>
+        <Col md={6}><Field label="Phone" name="phone" value={v.phone} onChange={set} error={errs.phone} help="10 digits" required /></Col>
+        <Col md={6}><Field label="Relationship" name="relationship" value={v.relationship} onChange={set} error={errs.relationship} /></Col>
+        <Col md={6}><Field label="Status" name="status" type="select" options={ENUMS.BorrowerContactStatus} value={v.status} onChange={set} error={errs.status} /></Col>
+      </Row>)}
+    </FormModal>
+
+    <ConfirmDialog show={!!del} title="Delete borrower contact" variant="danger" confirmLabel="Delete"
+      body={<>Delete contact <strong>{del?.name}</strong> for account {del?.accountId}?</>}
+      onCancel={() => setDel(null)} onConfirm={doDelete} />
   </>);
 }

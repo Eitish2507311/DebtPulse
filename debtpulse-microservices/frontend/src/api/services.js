@@ -65,6 +65,7 @@ export const ptpApi = {
   list: (params) => api.get('/ptp', { params }),
   get: (id) => api.get(`/ptp/${id}`),
   create: (body) => api.post('/ptp', body),
+  update: (id, body) => api.put(`/ptp/${id}`, body),
   recordPayment: (id, actualPaidAmount) => api.patch(`/ptp/${id}/payment`, null, { params: { actualPaidAmount } }),
   reschedule: (id, commitmentDate) => api.patch(`/ptp/${id}/reschedule`, null, { params: { commitmentDate } }),
 };
