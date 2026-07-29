@@ -1,11 +1,13 @@
 package com.debtpulse.contact.service.impl;
 
+import com.debtpulse.contact.exception.BusinessRuleException;
 import com.debtpulse.contact.exception.ResourceNotFoundException;
 import com.debtpulse.common.security.AuthContext;
 import com.debtpulse.common.enums.BorrowerContactStatus;
 import com.debtpulse.contact.dto.request.BorrowerContactRequest;
 import com.debtpulse.contact.dto.response.BorrowerContactDto;
 import com.debtpulse.contact.entity.BorrowerContact;
+import com.debtpulse.contact.feign.AccountClient;
 import com.debtpulse.contact.feign.AuthClient;
 import com.debtpulse.contact.feign.dto.AuditLogRequest;
 import com.debtpulse.contact.mapper.BorrowerContactMapper;
@@ -28,16 +30,22 @@ public class BorrowerContactServiceImpl implements BorrowerContactService {
     private final BorrowerContactRepository repo;
     private final BorrowerContactMapper mapper;
     private final AuthClient authClient;
+    private final AccountClient accountClient;
 
     public BorrowerContactServiceImpl(BorrowerContactRepository repo, BorrowerContactMapper mapper,
-                                      AuthClient authClient) {
+                                      AuthClient authClient, AccountClient accountClient) {
         this.repo = repo;
         this.mapper = mapper;
         this.authClient = authClient;
+        this.accountClient = accountClient;
     }
 
     @Override
     public BorrowerContactDto create(BorrowerContactRequest req) {
+        // A borrower contact must belong to a real, registered delinquent account.
+        if (!accountClient.accountExists(req.accountId())) {
+            throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
+        }
         BorrowerContact entity = BorrowerContact.builder()
                 .accountId(req.accountId())
                 .contactType(req.contactType())

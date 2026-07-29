@@ -56,6 +56,17 @@ public class PtpServiceImpl implements PtpService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // One active promise per account: reject an identical ACTIVE PTP (same amount + commitment
+        // date). A genuinely different commitment is allowed; to change an existing one, edit it.
+        boolean duplicate = repo.findByAccountIdAndStatus(req.accountId(), PtpStatus.ACTIVE).stream()
+                .anyMatch(p -> req.commitmentDate().equals(p.getCommitmentDate())
+                        && p.getPtpAmount() != null && req.ptpAmount().compareTo(p.getPtpAmount()) == 0);
+        if (duplicate) {
+            throw new BusinessRuleException(
+                    "An identical active PTP (same amount and commitment date) already exists for account "
+                            + req.accountId() + ". Edit or reschedule the existing one instead.",
+                    "DUPLICATE_ACTIVE_PTP");
+        }
         String agentId = resolveAgentId(req.agentId());
         PromiseToPay entity = PromiseToPay.builder()
                 .accountId(req.accountId())
@@ -82,6 +93,18 @@ public class PtpServiceImpl implements PtpService {
     @Override
     public PtpDto getById(String id) {
         return mapper.toDto(find(id));
+    }
+
+    @Override
+    public PtpDto update(String id, PtpRequest req) {
+        PromiseToPay entity = find(id);
+        entity.setPtpDate(req.ptpDate());
+        entity.setPtpAmount(req.ptpAmount());
+        entity.setCommitmentDate(req.commitmentDate());
+        PromiseToPay saved = repo.save(entity);
+        log.info("PTP updated id={} amount={} commitmentDate={}", id, saved.getPtpAmount(), saved.getCommitmentDate());
+        audit("UPDATE", id);
+        return mapper.toDto(saved);
     }
 
     @Override

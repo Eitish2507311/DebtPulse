@@ -60,6 +60,13 @@ public class PtpController {
         return ResponseEntity.ok(ptpService.getById(id));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
+    @Operation(summary = "Edit an existing promise-to-pay (amount / dates)")
+    public ResponseEntity<PtpDto> update(@PathVariable String id, @Valid @RequestBody PtpRequest req) {
+        return ResponseEntity.ok(ptpService.update(id, req));
+    }
+
     @PatchMapping("/{id}/payment")
     @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     @Operation(summary = "Record a payment against a PTP (KEPT if it covers the amount, else PARTIAL)")

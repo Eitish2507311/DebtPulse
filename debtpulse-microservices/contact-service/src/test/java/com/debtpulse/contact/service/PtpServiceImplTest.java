@@ -66,6 +66,46 @@ class PtpServiceImplTest {
     }
 
     @Test
+    void create_duplicateActivePtp_sameAmountAndDate_throws() {
+        PtpRequest req = request();
+        when(accountClient.accountExists("ACC-1")).thenReturn(true);
+        PromiseToPay existing = PromiseToPay.builder()
+                .ptpId("PTP-9").accountId("ACC-1").status(PtpStatus.ACTIVE)
+                .ptpAmount(req.ptpAmount()).commitmentDate(req.commitmentDate()).build();
+        when(repo.findByAccountIdAndStatus("ACC-1", PtpStatus.ACTIVE)).thenReturn(java.util.List.of(existing));
+
+        assertThatThrownBy(() -> service.create(req)).isInstanceOf(BusinessRuleException.class);
+        verify(repo, never()).save(any());
+    }
+
+    @Test
+    void create_differentCommitmentDate_allowedEvenWithActivePtp() {
+        PtpRequest req = request();
+        when(accountClient.accountExists("ACC-1")).thenReturn(true);
+        PromiseToPay existing = PromiseToPay.builder()
+                .ptpId("PTP-9").accountId("ACC-1").status(PtpStatus.ACTIVE)
+                .ptpAmount(req.ptpAmount()).commitmentDate(req.commitmentDate().plusDays(3)).build();
+        when(repo.findByAccountIdAndStatus("ACC-1", PtpStatus.ACTIVE)).thenReturn(java.util.List.of(existing));
+        when(repo.save(any(PromiseToPay.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(req);
+        verify(repo).save(any(PromiseToPay.class));
+    }
+
+    @Test
+    void update_editsAmountAndDate() {
+        PromiseToPay ptp = PromiseToPay.builder().ptpId("PTP-3").accountId("ACC-1")
+                .ptpAmount(new BigDecimal("500.00")).status(PtpStatus.ACTIVE).build();
+        when(repo.findById("PTP-3")).thenReturn(Optional.of(ptp));
+        when(repo.save(any(PromiseToPay.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.update("PTP-3", request());
+
+        assertThat(ptp.getPtpAmount()).isEqualByComparingTo("1000.00");
+        verify(authClient).audit(any());
+    }
+
+    @Test
     void recordPayment_fullAmount_setsKept() {
         PromiseToPay ptp = PromiseToPay.builder()
                 .ptpId("PTP-1").accountId("ACC-1").agentId("USR-002")

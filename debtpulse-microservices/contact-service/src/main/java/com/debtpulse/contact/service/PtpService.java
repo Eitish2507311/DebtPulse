@@ -17,6 +17,9 @@ public interface PtpService {
 
     PtpDto getById(String id);
 
+    /** Edit an existing PTP's date/amount/commitment (the one-active-per-account alternative to re-creating). */
+    PtpDto update(String id, PtpRequest request);
+
     /**
      * Paginated list; every filter is optional (null/blank = ignored) and applied conjunctively.
      * {@code from}/{@code to} bound the commitment date (inclusive).

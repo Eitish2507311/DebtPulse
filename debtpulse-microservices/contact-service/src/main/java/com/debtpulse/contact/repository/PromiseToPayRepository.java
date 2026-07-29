@@ -27,6 +27,9 @@ public interface PromiseToPayRepository extends PagingAndSortingRepository<Promi
 
     long countByAccountIdAndStatus(String accountId, PtpStatus status);
 
+    /** All PTPs for an account in a given status — used to reject duplicate ACTIVE promises. */
+    List<PromiseToPay> findByAccountIdAndStatus(String accountId, PtpStatus status);
+
     /** ACTIVE PTPs whose commitment date has already passed — the daily breach sweep. */
     List<PromiseToPay> findByStatusAndCommitmentDateBefore(PtpStatus status, LocalDate date);
 }
