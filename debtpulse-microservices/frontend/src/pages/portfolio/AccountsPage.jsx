@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Row, Col, Form } from 'react-bootstrap';
+import { Button, Row, Col, Form, Modal } from 'react-bootstrap';
 import { accountApi } from '../../api/services.js';
 import { usePaged } from '../../hooks/usePaged.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -20,6 +20,19 @@ export default function AccountsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [acctId, setAcctId] = useState('');
   const openAccount = () => { const v = acctId.trim(); if (v) navigate(`/portfolio/${v}`); };
+
+  const [showImport, setShowImport] = useState(false);
+  const [file, setFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const closeImport = () => { setShowImport(false); setImportResult(null); setFile(null); };
+  const doImport = async () => {
+    if (!file) return;
+    setImporting(true);
+    try { const { data } = await accountApi.importCsv(file); setImportResult(data); reload(); }
+    catch { setImportResult({ importedCount: 0, errorCount: 1, errors: ['Import failed — check the file and try again.'] }); }
+    finally { setImporting(false); }
+  };
 
   const fetcher = useCallback((p) => accountApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged(fetcher, { filters });
@@ -44,7 +57,10 @@ export default function AccountsPage() {
   return (
     <>
       <PageHeader title="Delinquent Portfolio" subtitle="Manage delinquent accounts across collection buckets" icon="folder2-open"
-        actions={canWrite && <Button onClick={() => setShowCreate(true)}><i className="bi bi-plus-lg me-1" />New Account</Button>} />
+        actions={canWrite && <>
+          <Button variant="outline-primary" onClick={() => setShowImport(true)}><i className="bi bi-upload me-1" />Import CSV</Button>
+          <Button onClick={() => setShowCreate(true)}><i className="bi bi-plus-lg me-1" />New Account</Button>
+        </>} />
 
       <Row className="g-2 mb-3 align-items-end">
         <Col sm={6} md={3}>
@@ -111,6 +127,27 @@ export default function AccountsPage() {
           </Row>
         )}
       </FormModal>
+
+      <Modal show={showImport} onHide={closeImport} centered>
+        <Modal.Header closeButton><Modal.Title>Bulk import accounts (CSV)</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <p className="small text-muted mb-2">
+            Columns (header row required): <code>loanRef, borrowerName, phone, address, principal, overdue, dpd, [branchId]</code>.
+          </p>
+          <Form.Control type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          {importResult && (
+            <div className="mt-3 small">
+              <div className="text-success fw-semibold">Imported: {importResult.importedCount}</div>
+              {importResult.errorCount > 0 && <div className="text-danger fw-semibold">Errors: {importResult.errorCount}</div>}
+              {(importResult.errors || []).slice(0, 6).map((er, i) => <div key={i} className="text-muted">• {er}</div>)}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="light" onClick={closeImport}>Close</Button>
+          <Button disabled={!file || importing} onClick={doImport}>{importing ? 'Importing…' : 'Import'}</Button>
+        </Modal.Footer>
+      </Modal>
     </>
   );
 }

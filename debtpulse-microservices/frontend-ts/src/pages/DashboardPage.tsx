@@ -7,7 +7,7 @@ import { ROLE_LABELS, ACCESS, hasAny } from '../auth/roles';
 import { analyticsApi, notificationApi } from '../api/services';
 import { StatCard, PageHeader, Loading } from '../components/ui';
 import { inr, num, pct, titleCase } from '../utils/format';
-import type { Notification } from '../types';
+import type { Notification, Role } from '../types';
 
 // The analytics maps are dynamic (backend returns Map<String,Object>), so we read them loosely.
 type Blob = Record<string, any>;
@@ -25,7 +25,9 @@ const PIE = ['#1d6fb8', '#0aa2c0', '#b8860b', '#1a7f4b', '#b42318', '#6b7280', '
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
-  const isManager = hasAny(role, ACCESS.analytics);
+  // Admin, Portfolio Manager AND Collections Agent all see the same org KPI dashboard (kept in
+  // sync across roles). Field/Settlement/Legal officers work from their own module views instead.
+  const showKpis = (['ADMIN', 'PORTFOLIO_MANAGER', 'COLLECTIONS_AGENT'] as Role[]).includes(role!);
   const [dash, setDash] = useState<Blob | null>(null);
   const [buckets, setBuckets] = useState<Blob | null>(null);
   const [notes, setNotes] = useState<Notification[]>([]);
@@ -36,13 +38,13 @@ export default function DashboardPage() {
     const jobs: Promise<unknown>[] = [
       notificationApi.list({ page: 0, size: 5 }).then((r) => { if (alive) setNotes(r.data.content || []); }).catch(() => {}),
     ];
-    if (isManager) {
+    if (showKpis) {
       jobs.push(analyticsApi.dashboard().then((r) => { if (alive) setDash(r.data as Blob); }).catch(() => {}));
       jobs.push(analyticsApi.bucketDistribution().then((r) => { if (alive) setBuckets(r.data as Blob); }).catch(() => {}));
     }
     Promise.all(jobs).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [isManager]);
+  }, [showKpis]);
 
   const d: Blob = dash || {};
   const bucketData = buckets?.byBucket
@@ -56,7 +58,7 @@ export default function DashboardPage() {
         icon="speedometer2"
       />
 
-      {isManager && (loading ? <Loading /> : (
+      {showKpis && (loading ? <Loading /> : (
         <>
           <Row className="g-3 mb-3">
             <Col md={6} xl={3}><StatCard label="Accounts Managed" value={num(d.accountsManaged ?? d.totalAccounts)} icon="folder2-open" tone="navy" /></Col>

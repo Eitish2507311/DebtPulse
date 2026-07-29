@@ -31,13 +31,18 @@ public class AnalyticsController {
         this.analyticsService = analyticsService;
     }
 
+    // The summary dashboard + bucket distribution are read-only org KPIs shown on EVERY role's
+    // home dashboard, so collections agents may read them too (kept in sync across roles). The
+    // detailed analytics/report endpoints below stay manager-only via the class-level rule.
     @GetMapping("/dashboard")
+    @PreAuthorize("hasAnyRole('ADMIN','PORTFOLIO_MANAGER','COLLECTIONS_AGENT')")
     @Operation(summary = "Consolidated recovery dashboard aggregated from all services")
     public ResponseEntity<Map<String, Object>> dashboard() {
         return ResponseEntity.ok(analyticsService.dashboard());
     }
 
     @GetMapping("/bucket-distribution")
+    @PreAuthorize("hasAnyRole('ADMIN','PORTFOLIO_MANAGER','COLLECTIONS_AGENT')")
     public ResponseEntity<Map<String, Object>> bucketDistribution() {
         return ResponseEntity.ok(analyticsService.bucketDistribution());
     }

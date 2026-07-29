@@ -37,6 +37,11 @@ export const accountApi = {
   list: (params: Params) => api.get<PageResponse<Account>>('/accounts', { params }),
   get: (id: string) => api.get<Account>(`/accounts/${id}`),
   create: (body: Params) => api.post<Account>('/accounts', body),
+  importCsv: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/accounts/import/csv', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
   update: (id: string, body: Params) => api.put<Account>(`/accounts/${id}`, body),
   remove: (id: string) => api.delete(`/accounts/${id}`),
   assignAgent: (id: string, agentId: string) => api.patch<Account>(`/accounts/${id}/assign-agent/${agentId}`),

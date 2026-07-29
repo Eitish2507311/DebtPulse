@@ -21,7 +21,9 @@ const PIE = ['#1d6fb8', '#0aa2c0', '#b8860b', '#1a7f4b', '#b42318', '#6b7280', '
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
-  const isManager = hasAny(role, ACCESS.analytics);
+  // Admin, Portfolio Manager AND Collections Agent all see the same org KPI dashboard (kept in
+  // sync across roles). Field/Settlement/Legal officers work from their own module views instead.
+  const showKpis = [ROLES.ADMIN, ROLES.PORTFOLIO_MANAGER, ROLES.COLLECTIONS_AGENT].includes(role);
   const [dash, setDash] = useState(null);
   const [buckets, setBuckets] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -30,13 +32,13 @@ export default function DashboardPage() {
   useEffect(() => {
     let alive = true;
     const jobs = [notificationApi.list({ page: 0, size: 5 }).then((r) => alive && setNotes(r.data.content || [])).catch(() => {})];
-    if (isManager) {
+    if (showKpis) {
       jobs.push(analyticsApi.dashboard().then((r) => alive && setDash(r.data)).catch(() => {}));
       jobs.push(analyticsApi.bucketDistribution().then((r) => alive && setBuckets(r.data)).catch(() => {}));
     }
     Promise.all(jobs).finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, [isManager]);
+  }, [showKpis]);
 
   const bucketData = buckets?.byBucket
     ? Object.entries(buckets.byBucket).map(([name, value]) => ({ name, value: Number(value) })) : [];
@@ -49,7 +51,7 @@ export default function DashboardPage() {
         icon="speedometer2"
       />
 
-      {isManager && (loading ? <Loading /> : (
+      {showKpis && (loading ? <Loading /> : (
         <>
           <Row className="g-3 mb-3">
             <Col md={6} xl={3}><StatCard label="Accounts Managed" value={num(dash?.accountsManaged ?? dash?.totalAccounts)} icon="folder2-open" tone="navy" /></Col>

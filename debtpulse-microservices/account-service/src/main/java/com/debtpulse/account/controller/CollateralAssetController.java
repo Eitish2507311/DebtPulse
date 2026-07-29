@@ -31,14 +31,14 @@ public class CollateralAssetController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','COLLECTIONS_AGENT')")
     @Operation(summary = "Register a collateral asset against an account")
     public ResponseEntity<CollateralAsset> create(@Valid @RequestBody CollateralAssetRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(assetService.create(req));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','PORTFOLIO_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','PORTFOLIO_MANAGER','COLLECTIONS_AGENT')")
     @Operation(summary = "List all collateral assets (paginated, filterable by account/type/verification)")
     public ResponseEntity<PageResponse<CollateralAsset>> list(
             @RequestParam(defaultValue = "0") int page,
@@ -52,20 +52,20 @@ public class CollateralAssetController {
     }
 
     @GetMapping("/account/{accountId}")
-    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','PORTFOLIO_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','PORTFOLIO_MANAGER','COLLECTIONS_AGENT')")
     @Operation(summary = "List collateral assets for an account")
     public ResponseEntity<List<CollateralAsset>> getByAccount(@PathVariable String accountId) {
         return ResponseEntity.ok(assetService.getByAccount(accountId));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','PORTFOLIO_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','PORTFOLIO_MANAGER','COLLECTIONS_AGENT')")
     public ResponseEntity<CollateralAsset> getById(@PathVariable String id) {
         return ResponseEntity.ok(assetService.get(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN','FIELD_OFFICER','COLLECTIONS_AGENT')")
     public ResponseEntity<CollateralAsset> update(@PathVariable String id,
                                                   @Valid @RequestBody CollateralAssetRequest req) {
         return ResponseEntity.ok(assetService.update(id, req));

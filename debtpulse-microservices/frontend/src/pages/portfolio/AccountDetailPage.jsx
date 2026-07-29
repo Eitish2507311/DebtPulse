@@ -18,7 +18,7 @@ export default function AccountDetailPage() {
   const toast = useToast();
   const { role } = useAuth();
   const canEdit = [ROLES.ADMIN, ROLES.COLLECTIONS_AGENT].includes(role);
-  const canCollateral = [ROLES.ADMIN, ROLES.FIELD_OFFICER].includes(role);
+  const canCollateral = [ROLES.ADMIN, ROLES.FIELD_OFFICER, ROLES.COLLECTIONS_AGENT].includes(role);
 
   const { data: acc, loading, error, reload } = useAsync(() => accountApi.get(id), [id]);
   const [edit, setEdit] = useState(false);
