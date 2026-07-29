@@ -83,6 +83,12 @@ public class LegalController {
         return ResponseEntity.ok(legalService.listHearings(caseId));
     }
 
+    @GetMapping("/hearings")
+    @Operation(summary = "List all court hearings across every case")
+    public ResponseEntity<List<CourtHearingDto>> listAllHearings() {
+        return ResponseEntity.ok(legalService.listAllHearings());
+    }
+
     // ---- orders ----
 
     @PostMapping("/orders")

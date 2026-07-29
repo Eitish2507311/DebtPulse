@@ -30,6 +30,9 @@ public interface LegalService {
 
     List<CourtHearingDto> listHearings(String caseId);
 
+    /** All hearings across every case (for the standalone Hearings view), newest first. */
+    List<CourtHearingDto> listAllHearings();
+
     // ---- orders ----
     RecoveryOrderDto issueOrder(RecoveryOrderRequest request);
 

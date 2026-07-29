@@ -159,6 +159,13 @@ public class LegalServiceImpl implements LegalService {
         return hearingRepo.findByLegalCase_CaseId(caseId).stream().map(mapper::toDto).toList();
     }
 
+    @Override
+    public List<CourtHearingDto> listAllHearings() {
+        List<CourtHearingDto> out = new ArrayList<>();
+        hearingRepo.findAll().forEach(h -> out.add(mapper.toDto(h)));
+        return out;
+    }
+
     // --------------------------------------------------------------- orders
 
     @Override

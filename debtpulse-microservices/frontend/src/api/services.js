@@ -120,8 +120,10 @@ export const legalApi = {
   createCase: (body) => api.post('/legal/cases', body),
   updateCase: (id, body) => api.put(`/legal/cases/${id}`, body),
   listHearings: (caseId) => api.get(`/legal/cases/${caseId}/hearings`),
+  listAllHearings: () => api.get('/legal/hearings'),
   addHearing: (body) => api.post('/legal/hearings', body),
   listOrders: () => api.get('/legal/orders'),
+  getOrder: (id) => api.get(`/legal/orders/${id}`),
   issueOrder: (body) => api.post('/legal/orders', body),
   deleteOrder: (id) => api.delete(`/legal/orders/${id}`),
 };
