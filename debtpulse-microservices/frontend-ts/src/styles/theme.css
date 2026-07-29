@@ -204,7 +204,8 @@ a:hover { color: var(--dp-blue-800); }
   padding: .85rem 1.1rem;
 }
 
-.page-title { font-size: 1.5rem; font-weight: 800; color: var(--dp-navy); margin: 0; letter-spacing: -.02em; }
+.page-title { font-size: 1.3rem; font-weight: 700; color: var(--dp-navy); margin: 0; letter-spacing: -.01em; }
+.page-title i { font-size: 1.1rem; }
 .page-sub { color: var(--dp-muted); font-size: .85rem; }
 
 .stat-card {
@@ -215,7 +216,7 @@ a:hover { color: var(--dp-blue-800); }
 .stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(var(--dp-blue-400), var(--dp-blue-700)); opacity: .9; }
 .stat-card:hover { transform: translateY(-2px); box-shadow: var(--dp-shadow-md); }
 .stat-card .label { color: var(--dp-muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
-.stat-card .value { font-size: 1.7rem; font-weight: 800; color: var(--dp-navy); line-height: 1.15; letter-spacing: -.02em; }
+.stat-card .value { font-size: 1.5rem; font-weight: 800; color: var(--dp-navy); line-height: 1.15; letter-spacing: -.02em; }
 .stat-card .icon { width: 46px; height: 46px; border-radius: var(--dp-radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
 
 .table { --bs-table-color: var(--dp-text); margin-bottom: 0; }
@@ -269,6 +270,26 @@ a:hover { color: var(--dp-blue-800); }
 .nav-scroll::-webkit-scrollbar { width: 6px; }
 .nav-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 3px; }
 .nav-scroll:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,.28); }
+
+/* ==========================================================================
+   Mobile / small-screen polish — tighter padding, compact chrome, no overflow.
+   ========================================================================== */
+@media (max-width: 992px) {
+  .page-body { padding: 1.1rem 1rem 2.25rem; }
+}
+@media (max-width: 576px) {
+  .page-body { padding: .9rem .8rem 2rem; }
+  .page-title { font-size: 1.12rem; }
+  .page-title i { font-size: .95rem; }
+  .topbar { padding: 0 .85rem; gap: .5rem; }
+  .topbar .crumb { font-size: .95rem; }
+  .stat-card { padding: .9rem 1rem; }
+  .stat-card .value { font-size: 1.3rem; }
+  /* declutter the top bar on phones: keep reset "A" + theme toggle, drop the A−/A＋ steppers */
+  .pref-btn.sm, .pref-btn.lg { display: none; }
+  /* PageHeader action buttons wrap under the title instead of squashing it */
+  .btn { --bs-btn-padding-x: .7rem; }
+}
 
 /* ==========================================================================
    Preference control (light/dark + font resize) — adapts to its context by

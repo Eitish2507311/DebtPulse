@@ -126,7 +126,7 @@ function HearingsTab({ canWrite }) {
     <ErrorNote error={error} />
     <div className="card">
       {!rows.length ? <div className="card-body"><EmptyState icon="calendar-event" title="No hearings" /></div> : (
-        <Table hover className="mb-0"><thead><tr>
+        <Table responsive hover className="mb-0"><thead><tr>
           <th>Hearing</th><th>Case</th><th>Date</th><th>Outcome</th><th>Next Hearing</th><th>Notes</th>
         </tr></thead><tbody>
           {rows.map((h) => (
@@ -184,7 +184,7 @@ function OrdersTab({ canWrite }) {
     <ErrorNote error={error} />
     <div className="card">
       {!rows.length ? <div className="card-body"><EmptyState icon="file-earmark-text" title="No recovery orders" /></div> : (
-        <Table hover className="mb-0"><thead><tr>
+        <Table responsive hover className="mb-0"><thead><tr>
           <th>Order</th><th>Case</th><th>Type</th><th>Issued</th><th>Deadline</th><th>Status</th><th></th>
         </tr></thead><tbody>
           {rows.map((o) => (
