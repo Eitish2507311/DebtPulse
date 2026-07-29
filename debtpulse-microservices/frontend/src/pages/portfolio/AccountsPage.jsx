@@ -18,6 +18,8 @@ export default function AccountsPage() {
   const canWrite = [ROLES.ADMIN, ROLES.COLLECTIONS_AGENT].includes(role);
   const [filters, setFilters] = useState({});
   const [showCreate, setShowCreate] = useState(false);
+  const [acctId, setAcctId] = useState('');
+  const openAccount = () => { const v = acctId.trim(); if (v) navigate(`/portfolio/${v}`); };
 
   const fetcher = useCallback((p) => accountApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged(fetcher, { filters });
@@ -44,18 +46,44 @@ export default function AccountsPage() {
       <PageHeader title="Delinquent Portfolio" subtitle="Manage delinquent accounts across collection buckets" icon="folder2-open"
         actions={canWrite && <Button onClick={() => setShowCreate(true)}><i className="bi bi-plus-lg me-1" />New Account</Button>} />
 
-      <Row className="g-2 mb-3">
-        <Col sm={4} md={3}>
+      <Row className="g-2 mb-3 align-items-end">
+        <Col sm={6} md={3}>
+          <Form.Label className="small text-muted mb-1">Open by Account ID</Form.Label>
+          <div className="d-flex gap-1">
+            <Form.Control size="sm" placeholder="ACC-…" value={acctId}
+              onChange={(e) => setAcctId(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') openAccount(); }} />
+            <Button size="sm" variant="outline-primary" onClick={openAccount}>Open</Button>
+          </div>
+        </Col>
+        <Col sm={6} md={2}>
+          <Form.Label className="small text-muted mb-1">Agent ID</Form.Label>
+          <Form.Control size="sm" placeholder="USR-…" value={filters.agentId || ''}
+            onChange={(e) => cleanFilters({ agentId: e.target.value })} />
+        </Col>
+        <Col sm={4} md={2}>
+          <Form.Label className="small text-muted mb-1">Bucket</Form.Label>
           <Form.Select size="sm" value={filters.bucket || ''} onChange={(e) => cleanFilters({ bucket: e.target.value })}>
             <option value="">All buckets</option>
             {ENUMS.DpdBucket.map((b) => <option key={b} value={b}>{b}</option>)}
           </Form.Select>
         </Col>
-        <Col sm={4} md={3}>
+        <Col sm={4} md={2}>
+          <Form.Label className="small text-muted mb-1">Status</Form.Label>
           <Form.Select size="sm" value={filters.status || ''} onChange={(e) => cleanFilters({ status: e.target.value })}>
             <option value="">All statuses</option>
             {ENUMS.AccountStatus.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
           </Form.Select>
+        </Col>
+        <Col sm={6} md={3}>
+          <Form.Label className="small text-muted mb-1">DPD range</Form.Label>
+          <div className="d-flex gap-1 align-items-center">
+            <Form.Control size="sm" type="number" min="0" placeholder="min" value={filters.dpdMin || ''}
+              onChange={(e) => cleanFilters({ dpdMin: e.target.value })} />
+            <span className="text-muted">–</span>
+            <Form.Control size="sm" type="number" min="0" placeholder="max" value={filters.dpdMax || ''}
+              onChange={(e) => cleanFilters({ dpdMax: e.target.value })} />
+          </div>
         </Col>
       </Row>
 

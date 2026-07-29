@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Button, Row, Col } from 'react-bootstrap';
+import { Button, Row, Col, Form, InputGroup } from 'react-bootstrap';
 import { allocationApi } from '../../api/services';
 import { usePaged } from '../../hooks/usePaged';
 import { PageHeader, ErrorNote, StatusBadge } from '../../components/ui';
@@ -22,6 +22,15 @@ export default function AllocationsPage() {
   const [editing, setEditing] = useState<AllocationRule | Record<string, never> | null>(null);
   const [remove, setRemove] = useState<AllocationRule | null>(null);
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState('');
+
+  // Client-side search over the loaded rules (id / name / role / strategy / bucket).
+  const shown = page ? { ...page, content: (page.content || []).filter((r) => {
+    if (!q.trim()) return true;
+    const s = q.toLowerCase();
+    return [r.ruleId, r.name, r.targetRole, r.strategy, r.bucket]
+      .some((x) => (x || '').toString().toLowerCase().includes(s));
+  }) } : page;
 
   const runExecute = async () => {
     try { const { data } = await allocationApi.execute(); toast.success(`Allocated ${data.allocated ?? 0} account(s)`); }
@@ -63,7 +72,15 @@ export default function AllocationsPage() {
           <Button onClick={() => setEditing({})}><i className="bi bi-plus-lg me-1" />New rule</Button>
         </>} />
       <ErrorNote error={error} />
-      <DataTable<AllocationRule> columns={columns} page={page} loading={loading} onPageChange={setPage}
+      <Row className="g-2 mb-3"><Col sm={6} md={4}>
+        <InputGroup size="sm">
+          <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
+          <Form.Control placeholder="Search rules by id, name, role, strategy…" value={q}
+            onChange={(e) => setQ(e.target.value)} />
+          {q && <Button variant="outline-secondary" onClick={() => setQ('')}><i className="bi bi-x" /></Button>}
+        </InputGroup>
+      </Col></Row>
+      <DataTable<AllocationRule> columns={columns} page={shown} loading={loading} onPageChange={setPage}
         emptyIcon="diagram-3" emptyTitle="No allocation rules" />
 
       <FormModal show={!!editing} title={isEdit ? 'Edit Allocation Rule' : 'New Allocation Rule'}
