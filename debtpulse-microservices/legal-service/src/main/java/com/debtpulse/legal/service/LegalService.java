@@ -6,6 +6,7 @@ import com.debtpulse.legal.dto.request.RecoveryOrderRequest;
 import com.debtpulse.legal.dto.response.CourtHearingDto;
 import com.debtpulse.legal.dto.response.LegalCaseDto;
 import com.debtpulse.legal.dto.response.RecoveryOrderDto;
+import com.debtpulse.common.enums.CaseStatus;
 import com.debtpulse.common.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,7 +20,8 @@ public interface LegalService {
     // ---- cases ----
     LegalCaseDto initiateCase(LegalCaseRequest request);
 
-    Page<LegalCaseDto> listCases(Pageable pageable);
+    /** Legal cases, optionally filtered to a single lifecycle status ({@code null} = all). */
+    Page<LegalCaseDto> listCases(CaseStatus status, Pageable pageable);
 
     LegalCaseDto getCase(String id);
 

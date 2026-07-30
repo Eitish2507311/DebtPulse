@@ -7,6 +7,7 @@ import com.debtpulse.legal.dto.request.RecoveryOrderRequest;
 import com.debtpulse.legal.dto.response.CourtHearingDto;
 import com.debtpulse.legal.dto.response.LegalCaseDto;
 import com.debtpulse.legal.dto.response.RecoveryOrderDto;
+import com.debtpulse.common.enums.CaseStatus;
 import com.debtpulse.common.enums.OrderStatus;
 import com.debtpulse.legal.service.LegalService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,12 +49,13 @@ public class LegalController {
     }
 
     @GetMapping("/cases")
-    @Operation(summary = "List legal cases (paginated)")
+    @Operation(summary = "List legal cases (paginated), optionally filtered by status")
     public ResponseEntity<PageResponse<LegalCaseDto>> listCases(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) CaseStatus status) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("filingDate").descending());
-        return ResponseEntity.ok(PageResponse.of(legalService.listCases(pageable)));
+        return ResponseEntity.ok(PageResponse.of(legalService.listCases(status, pageable)));
     }
 
     @GetMapping("/cases/{id}")

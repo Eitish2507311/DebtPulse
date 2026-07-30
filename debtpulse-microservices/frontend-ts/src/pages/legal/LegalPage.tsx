@@ -12,7 +12,7 @@ import Field from '../../components/Field';
 import { useToast } from '../../components/ToastHost';
 import { ENUMS } from '../../utils/enums';
 import { date, titleCase, today } from '../../utils/format';
-import type { LegalCase, CourtHearing, RecoveryOrder, Column } from '../../types';
+import type { LegalCase, CourtHearing, RecoveryOrder, Column, PageResponse } from '../../types';
 
 /** Small reusable filter box (client-side) with a clear button. */
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
@@ -106,35 +106,104 @@ function CasesTab({ canWrite }: { canWrite: boolean }) {
   </>);
 }
 
+const needsNextDate = (o: string) => o === 'ADJOURNED' || o === 'PARTIALLY_HEARD';
+const passesOrder = (o: string) => o === 'ORDER_PASSED';
+
+/** Modal to record the outcome of a scheduled hearing; reveals order fields when an order is passed. */
+function RecordOutcomeModal({ legalCase, onClose, onSaved }:
+  { legalCase: LegalCase | null; onClose: () => void; onSaved: () => void }) {
+  return (
+    <FormModal show={!!legalCase} title={`Record Hearing Outcome — ${legalCase?.caseId || ''}`} submitLabel="Save outcome"
+      initial={{ hearingDate: today(), hearingOutcome: '', nextHearingDate: '', notes: '', orderType: '', executionDeadline: '' }}
+      onClose={onClose} onSaved={onSaved}
+      onSubmit={(v) => legalApi.addHearing({
+        caseId: legalCase!.caseId,
+        hearingDate: v.hearingDate,
+        hearingOutcome: v.hearingOutcome,
+        nextHearingDate: needsNextDate(v.hearingOutcome) ? (v.nextHearingDate || null) : null,
+        notes: v.notes || null,
+        orderType: passesOrder(v.hearingOutcome) ? (v.orderType || null) : null,
+        executionDeadline: passesOrder(v.hearingOutcome) ? (v.executionDeadline || null) : null,
+      })}>
+      {(v, set, errs) => (<Row>
+        <Col md={6}><Field label="Hearing Date" name="hearingDate" type="date" value={v.hearingDate} onChange={set} error={errs.hearingDate} required /></Col>
+        <Col md={6}><Field label="Outcome" name="hearingOutcome" type="select" options={ENUMS.HearingOutcome} value={v.hearingOutcome} onChange={set} error={errs.hearingOutcome} required /></Col>
+        {needsNextDate(v.hearingOutcome) && (
+          <Col md={6}><Field label="Next Hearing Date" name="nextHearingDate" type="date" value={v.nextHearingDate} onChange={set} error={errs.nextHearingDate} help="Case stays Hearing Scheduled" /></Col>
+        )}
+        {passesOrder(v.hearingOutcome) && (<>
+          <Col md={6}><Field label="Order Type" name="orderType" type="select" options={ENUMS.OrderType} value={v.orderType} onChange={set} error={errs.orderType} required help="A recovery order is issued automatically" /></Col>
+          <Col md={6}><Field label="Execution Deadline" name="executionDeadline" type="date" value={v.executionDeadline} onChange={set} error={errs.executionDeadline} required /></Col>
+        </>)}
+        <Col md={12}><Field label="Notes" name="notes" value={v.notes} onChange={set} error={errs.notes} /></Col>
+      </Row>)}
+    </FormModal>
+  );
+}
+
 function HearingsTab({ canWrite }: { canWrite: boolean }) {
-  const { data, loading, error, reload } = useAsync<CourtHearing[]>(() => legalApi.listAllHearings(), []);
-  const [show, setShow] = useState(false);
+  // Cases currently in HEARING_SCHEDULED — these are awaiting a recorded outcome.
+  const scheduled = useAsync<PageResponse<LegalCase>>(() => legalApi.listCases({ status: 'HEARING_SCHEDULED', size: 100 }), []);
+  // Full hearing history across every case.
+  const history = useAsync<CourtHearing[]>(() => legalApi.listAllHearings(), []);
+  const [schedule, setSchedule] = useState(false);
+  const [outcomeFor, setOutcomeFor] = useState<LegalCase | null>(null);
   const [q, setQ] = useState('');
 
-  const rows = (data || []).filter((h) => {
+  const reloadAll = () => { scheduled.reload(); history.reload(); };
+
+  const scheduledRows = scheduled.data?.content || [];
+  const historyRows = (history.data || []).filter((h) => {
     if (!q) return true;
     const s = q.toLowerCase();
     return (h.hearingId || '').toLowerCase().includes(s) || (h.caseId || '').toLowerCase().includes(s);
   });
+  // Latest scheduled next-hearing date per case, for the awaiting-outcome list.
+  const nextByCase: Record<string, string> = {};
+  (history.data || []).forEach((h) => { if (h.nextHearingDate) nextByCase[h.caseId] = h.nextHearingDate; });
 
-  if (loading) return <Loading />;
   return (<>
     <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
-      <SearchBox value={q} onChange={setQ} placeholder="Filter by hearing / case ID…" />
-      {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />Record hearing</Button>}
+      <h6 className="mb-0">Cases awaiting outcome <span className="text-muted fw-normal">(Hearing Scheduled)</span></h6>
+      {canWrite && <Button size="sm" onClick={() => setSchedule(true)}><i className="bi bi-calendar-plus me-1" />Schedule hearing</Button>}
     </div>
-    <ErrorNote error={error} />
+    <ErrorNote error={scheduled.error} />
+    <div className="card mb-4">
+      {scheduled.loading ? <div className="card-body"><Loading /></div>
+        : !scheduledRows.length ? <div className="card-body"><EmptyState icon="calendar-event" title="No cases awaiting a hearing outcome" /></div> : (
+        <Table responsive hover className="mb-0"><thead><tr>
+          <th>Case</th><th>Account</th><th>Next Hearing</th><th></th>
+        </tr></thead><tbody>
+          {scheduledRows.map((c) => (
+            <tr key={c.caseId}>
+              <td className="text-mono">{c.caseId}</td>
+              <td className="text-mono">{c.accountId}</td>
+              <td>{date(nextByCase[c.caseId])}</td>
+              <td className="text-end">{canWrite
+                && <Button size="sm" onClick={() => setOutcomeFor(c)}><i className="bi bi-clipboard-check me-1" />Record outcome</Button>}</td>
+            </tr>
+          ))}
+        </tbody></Table>
+      )}
+    </div>
+
+    <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+      <h6 className="mb-0">Hearing history</h6>
+      <SearchBox value={q} onChange={setQ} placeholder="Filter by hearing / case ID…" />
+    </div>
+    <ErrorNote error={history.error} />
     <div className="card">
-      {!rows.length ? <div className="card-body"><EmptyState icon="calendar-event" title="No hearings" /></div> : (
+      {history.loading ? <div className="card-body"><Loading /></div>
+        : !historyRows.length ? <div className="card-body"><EmptyState icon="calendar-event" title="No hearings" /></div> : (
         <Table responsive hover className="mb-0"><thead><tr>
           <th>Hearing</th><th>Case</th><th>Date</th><th>Outcome</th><th>Next Hearing</th><th>Notes</th>
         </tr></thead><tbody>
-          {rows.map((h) => (
+          {historyRows.map((h) => (
             <tr key={h.hearingId}>
               <td className="text-mono">{h.hearingId}</td>
               <td className="text-mono">{h.caseId}</td>
               <td>{date(h.hearingDate)}</td>
-              <td><StatusBadge value={h.hearingOutcome} /></td>
+              <td>{h.hearingOutcome ? <StatusBadge value={h.hearingOutcome} /> : <span className="text-muted small">Scheduled</span>}</td>
               <td>{date(h.nextHearingDate)}</td>
               <td>{h.notes}</td>
             </tr>
@@ -142,18 +211,21 @@ function HearingsTab({ canWrite }: { canWrite: boolean }) {
         </tbody></Table>
       )}
     </div>
-    <FormModal show={show} title="Record Court Hearing" submitLabel="Record hearing"
-      initial={{ caseId: '', hearingDate: today(), hearingOutcome: '', nextHearingDate: '', notes: '' }}
-      onClose={() => setShow(false)} onSaved={reload}
-      onSubmit={(v) => legalApi.addHearing({ ...v, nextHearingDate: v.nextHearingDate || null })}>
+
+    {/* Schedule a hearing (no outcome yet) — moves the case to Hearing Scheduled. */}
+    <FormModal show={schedule} title="Schedule Court Hearing" submitLabel="Schedule hearing"
+      initial={{ caseId: '', hearingDate: today(), notes: '' }}
+      onClose={() => setSchedule(false)} onSaved={reloadAll}
+      onSubmit={(v) => legalApi.addHearing({ caseId: v.caseId, hearingDate: v.hearingDate,
+        hearingOutcome: null, nextHearingDate: v.hearingDate, notes: v.notes || null })}>
       {(v, set, errs) => (<Row>
-        <Col md={6}><Field label="Case ID" name="caseId" value={v.caseId} onChange={set} error={errs.caseId} required /></Col>
+        <Col md={6}><Field label="Case ID" name="caseId" value={v.caseId} onChange={set} error={errs.caseId} required help="Case must be open (not settled/decreed/withdrawn)" /></Col>
         <Col md={6}><Field label="Hearing Date" name="hearingDate" type="date" value={v.hearingDate} onChange={set} error={errs.hearingDate} required /></Col>
-        <Col md={6}><Field label="Outcome" name="hearingOutcome" type="select" options={ENUMS.HearingOutcome} value={v.hearingOutcome} onChange={set} error={errs.hearingOutcome} required /></Col>
-        <Col md={6}><Field label="Next Hearing" name="nextHearingDate" type="date" value={v.nextHearingDate} onChange={set} error={errs.nextHearingDate} help="Sets the case to Hearing Scheduled" /></Col>
         <Col md={12}><Field label="Notes" name="notes" value={v.notes} onChange={set} error={errs.notes} /></Col>
       </Row>)}
     </FormModal>
+
+    <RecordOutcomeModal legalCase={outcomeFor} onClose={() => setOutcomeFor(null)} onSaved={reloadAll} />
   </>);
 }
 
@@ -203,7 +275,7 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
       initial={{ caseId: '', orderType: '', issuedDate: today(), executionDeadline: '' }}
       onClose={() => setShow(false)} onSaved={reload} onSubmit={(v) => legalApi.issueOrder(v)}>
       {(v, set, errs) => (<Row>
-        <Col md={6}><Field label="Case ID" name="caseId" value={v.caseId} onChange={set} error={errs.caseId} required /></Col>
+        <Col md={6}><Field label="Case ID" name="caseId" value={v.caseId} onChange={set} error={errs.caseId} required help="Case must be DECREED (an order was passed at a hearing)" /></Col>
         <Col md={6}><Field label="Order Type" name="orderType" type="select" options={ENUMS.OrderType} value={v.orderType} onChange={set} error={errs.orderType} required /></Col>
         <Col md={6}><Field label="Issued Date" name="issuedDate" type="date" value={v.issuedDate} onChange={set} error={errs.issuedDate} required /></Col>
         <Col md={6}><Field label="Execution Deadline" name="executionDeadline" type="date" value={v.executionDeadline} onChange={set} error={errs.executionDeadline} required /></Col>

@@ -1,6 +1,7 @@
 package com.debtpulse.legal.service;
 
 import com.debtpulse.common.enums.CaseStatus;
+import com.debtpulse.common.enums.HearingOutcome;
 import com.debtpulse.common.enums.OrderStatus;
 import com.debtpulse.legal.exception.BusinessRuleException;
 
@@ -36,7 +37,44 @@ public final class LegalStatusPolicy {
         ORDER.put(OrderStatus.VACATED, EnumSet.noneOf(OrderStatus.class));  // terminal
     }
 
+    /** Case states that still accept a court hearing (open cases). Concluded cases do not. */
+    private static final Set<CaseStatus> OPEN_FOR_HEARING =
+            EnumSet.of(CaseStatus.FILED, CaseStatus.PENDING, CaseStatus.HEARING_SCHEDULED);
+
     private LegalStatusPolicy() {}
+
+    /** True while a case is still open enough to schedule/hold a hearing (not decreed, settled or withdrawn). */
+    public static boolean isOpenForHearing(CaseStatus status) {
+        return OPEN_FOR_HEARING.contains(status);
+    }
+
+    /** @throws BusinessRuleException if a hearing may not be recorded because the case is already concluded. */
+    public static void assertHearingAllowed(CaseStatus status) {
+        if (!isOpenForHearing(status)) {
+            throw new BusinessRuleException(
+                    "Cannot record a hearing: the case is " + status + " and already concluded.",
+                    "CASE_CONCLUDED");
+        }
+    }
+
+    /**
+     * The case status a hearing outcome drives the case to. A hearing that is only scheduled (no outcome
+     * yet) moves the case to {@code HEARING_SCHEDULED}; a recorded outcome advances it:
+     * {@code ORDER_PASSED → DECREED}, {@code SETTLED → SETTLED}, {@code DISMISSED → WITHDRAWN},
+     * and {@code ADJOURNED / PARTIALLY_HEARD → HEARING_SCHEDULED} (still in progress). The engine only
+     * proposes a target; {@link #assertCaseTransition} still validates it against the current state.
+     */
+    public static CaseStatus caseStatusForOutcome(HearingOutcome outcome) {
+        if (outcome == null) {
+            return CaseStatus.HEARING_SCHEDULED; // scheduling a hearing, not yet held
+        }
+        return switch (outcome) {
+            case ORDER_PASSED -> CaseStatus.DECREED;
+            case SETTLED -> CaseStatus.SETTLED;
+            case DISMISSED -> CaseStatus.WITHDRAWN;
+            case ADJOURNED, PARTIALLY_HEARD -> CaseStatus.HEARING_SCHEDULED;
+        };
+    }
 
     /** @throws BusinessRuleException if {@code from → to} is not a permitted case transition. */
     public static void assertCaseTransition(CaseStatus from, CaseStatus to) {

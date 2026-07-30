@@ -6,6 +6,9 @@ import com.debtpulse.common.security.AuthContext;
 import com.debtpulse.common.audit.AuditContext;
 import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.CaseStatus;
+import com.debtpulse.common.enums.HearingOutcome;
+import com.debtpulse.common.enums.OrderStatus;
+import com.debtpulse.common.enums.OrderType;
 import com.debtpulse.legal.dto.request.CourtHearingRequest;
 import com.debtpulse.legal.dto.request.LegalCaseRequest;
 import com.debtpulse.legal.dto.request.RecoveryOrderRequest;
@@ -33,6 +36,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,8 +100,11 @@ public class LegalServiceImpl implements LegalService {
     }
 
     @Override
-    public Page<LegalCaseDto> listCases(Pageable pageable) {
-        return caseRepo.findAll(pageable).map(mapper::toDto);
+    public Page<LegalCaseDto> listCases(CaseStatus status, Pageable pageable) {
+        Page<LegalCase> cases = (status == null)
+                ? caseRepo.findAll(pageable)
+                : caseRepo.findByStatus(status, pageable);
+        return cases.map(mapper::toDto);
     }
 
     @Override
@@ -130,22 +137,45 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public CourtHearingDto addHearing(CourtHearingRequest req) {
         LegalCase legalCase = findCase(req.caseId());
+
+        // (3) A concluded case (DECREED / SETTLED / WITHDRAWN) can no longer take a hearing.
+        LegalStatusPolicy.assertHearingAllowed(legalCase.getStatus());
+
+        HearingOutcome outcome = req.hearingOutcome();
+        // (4) When the court passes an order, its type + deadline are needed to issue the recovery order.
+        if (outcome == HearingOutcome.ORDER_PASSED
+                && (req.orderType() == null || req.executionDeadline() == null)) {
+            throw new BusinessRuleException(
+                    "Order type and execution deadline are required when the hearing outcome is ORDER_PASSED.",
+                    "ORDER_DETAILS_REQUIRED");
+        }
+
         CourtHearing hearing = CourtHearing.builder()
                 .legalCase(legalCase)
                 .hearingDate(req.hearingDate())
-                .hearingOutcome(req.hearingOutcome())
+                .hearingOutcome(outcome)
                 .nextHearingDate(req.nextHearingDate())
                 .notes(req.notes())
                 .build();
         CourtHearing saved = hearingRepo.save(hearing);
 
-        // A future hearing has been scheduled -> reflect it on the case.
-        if (req.nextHearingDate() != null) {
-            legalCase.setStatus(CaseStatus.HEARING_SCHEDULED);
+        // The outcome (or a bare schedule) drives the case lifecycle — validated against the state machine
+        // so a hearing can never push the case into an illegal state (6).
+        CaseStatus target = LegalStatusPolicy.caseStatusForOutcome(outcome);
+        if (target != legalCase.getStatus()) {
+            LegalStatusPolicy.assertCaseTransition(legalCase.getStatus(), target);
+            legalCase.setStatus(target);
             caseRepo.save(legalCase);
-            log.info("Case id={} moved to HEARING_SCHEDULED (next hearing {})",
-                    legalCase.getCaseId(), req.nextHearingDate());
+            log.info("Case id={} moved to {} after hearing outcome {}",
+                    legalCase.getCaseId(), target, outcome);
         }
+
+        // (4)(5) ORDER_PASSED → decreed case → auto-issue the recovery order so it surfaces under
+        // Recovery Orders in the same step.
+        if (outcome == HearingOutcome.ORDER_PASSED) {
+            issueOrderFor(legalCase, req.orderType(), req.hearingDate(), req.executionDeadline());
+        }
+
         log.info("Court hearing recorded id={} case={} outcome={}",
                 saved.getHearingId(), legalCase.getCaseId(), saved.getHearingOutcome());
         audit("HEARING_ADDED", "CourtHearing", saved.getHearingId());
@@ -172,18 +202,38 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public RecoveryOrderDto issueOrder(RecoveryOrderRequest req) {
         LegalCase legalCase = findCase(req.caseId());
+        // (5)(6) A recovery order can only exist once the court has decreed the case.
+        if (legalCase.getStatus() != CaseStatus.DECREED) {
+            throw new BusinessRuleException(
+                    "A recovery order can only be issued for a DECREED case (record an ORDER_PASSED hearing "
+                            + "first); case " + legalCase.getCaseId() + " is " + legalCase.getStatus() + ".",
+                    "CASE_NOT_DECREED");
+        }
+        RecoveryOrder saved = issueOrderFor(legalCase, req.orderType(), req.issuedDate(),
+                req.executionDeadline(), req.status());
+        return mapper.toDto(saved);
+    }
+
+    /** Issue a recovery order defaulting to {@code ISSUED} (used by the ORDER_PASSED hearing flow). */
+    private RecoveryOrder issueOrderFor(LegalCase legalCase, OrderType type, LocalDate issued, LocalDate deadline) {
+        return issueOrderFor(legalCase, type, issued, deadline, OrderStatus.ISSUED);
+    }
+
+    /** Persist + audit a recovery order for a case; shared by the public API and the ORDER_PASSED flow. */
+    private RecoveryOrder issueOrderFor(LegalCase legalCase, OrderType type, LocalDate issued,
+                                        LocalDate deadline, OrderStatus status) {
         RecoveryOrder order = RecoveryOrder.builder()
                 .legalCase(legalCase)
-                .orderType(req.orderType())
-                .issuedDate(req.issuedDate())
-                .executionDeadline(req.executionDeadline())
-                .status(req.status() != null ? req.status() : com.debtpulse.common.enums.OrderStatus.ISSUED)
+                .orderType(type)
+                .issuedDate(issued)
+                .executionDeadline(deadline)
+                .status(status != null ? status : OrderStatus.ISSUED)
                 .build();
         RecoveryOrder saved = orderRepo.save(order);
         log.info("Recovery order issued id={} case={} type={}",
                 saved.getOrderId(), legalCase.getCaseId(), saved.getOrderType());
         audit("ORDER_ISSUED", "RecoveryOrder", saved.getOrderId());
-        return mapper.toDto(saved);
+        return saved;
     }
 
     @Override
