@@ -36,6 +36,18 @@ class LegalStatusPolicyTest {
     }
 
     @Test
+    void case_dismissal_isReachableFromHearingAndTerminal() {
+        // a case can be dismissed at a scheduled hearing
+        assertThatCode(() -> LegalStatusPolicy.assertCaseTransition(CaseStatus.HEARING_SCHEDULED, CaseStatus.DISMISSED))
+                .doesNotThrowAnyException();
+        // but not without one, and dismissal is terminal
+        assertThatThrownBy(() -> LegalStatusPolicy.assertCaseTransition(CaseStatus.FILED, CaseStatus.DISMISSED))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> LegalStatusPolicy.assertCaseTransition(CaseStatus.DISMISSED, CaseStatus.PENDING))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
     void order_allowsLawfulProgression_andRejectsJumps() {
         assertThatCode(() -> LegalStatusPolicy.assertOrderTransition(OrderStatus.ISSUED, OrderStatus.IN_EXECUTION))
                 .doesNotThrowAnyException();

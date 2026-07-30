@@ -197,6 +197,21 @@ class LegalServiceImplTest {
     }
 
     @Test
+    void addHearing_dismissedOutcome_dismissesCase() {
+        LegalCase existing = caseWith(CaseStatus.HEARING_SCHEDULED);
+        when(caseRepo.findById("CASE-1")).thenReturn(Optional.of(existing));
+        when(hearingRepo.save(any(CourtHearing.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CourtHearingRequest req = new CourtHearingRequest("CASE-1",
+                LocalDate.of(2026, 8, 1), HearingOutcome.DISMISSED, null, "dismissed by court", null, null);
+
+        service.addHearing(req);
+
+        assertThat(existing.getStatus()).isEqualTo(CaseStatus.DISMISSED);
+        verify(caseRepo).save(existing);
+    }
+
+    @Test
     void issueOrder_onNonDecreedCase_throwsAndSavesNothing() {
         LegalCase existing = caseWith(CaseStatus.HEARING_SCHEDULED);
         when(caseRepo.findById("CASE-1")).thenReturn(Optional.of(existing));

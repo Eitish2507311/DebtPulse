@@ -6,6 +6,7 @@ public enum CaseStatus {
     PENDING,
     HEARING_SCHEDULED,
     DECREED,
+    DISMISSED,
     WITHDRAWN,
     SETTLED
 }

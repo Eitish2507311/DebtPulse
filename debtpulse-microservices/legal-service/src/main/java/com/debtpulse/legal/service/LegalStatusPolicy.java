@@ -24,9 +24,10 @@ public final class LegalStatusPolicy {
     static {
         CASE.put(CaseStatus.FILED, EnumSet.of(CaseStatus.PENDING, CaseStatus.HEARING_SCHEDULED, CaseStatus.WITHDRAWN));
         CASE.put(CaseStatus.PENDING, EnumSet.of(CaseStatus.HEARING_SCHEDULED, CaseStatus.WITHDRAWN));
-        CASE.put(CaseStatus.HEARING_SCHEDULED,
-                EnumSet.of(CaseStatus.PENDING, CaseStatus.DECREED, CaseStatus.SETTLED, CaseStatus.WITHDRAWN));
+        CASE.put(CaseStatus.HEARING_SCHEDULED, EnumSet.of(CaseStatus.PENDING, CaseStatus.DECREED,
+                CaseStatus.DISMISSED, CaseStatus.SETTLED, CaseStatus.WITHDRAWN));
         CASE.put(CaseStatus.DECREED, EnumSet.of(CaseStatus.SETTLED));
+        CASE.put(CaseStatus.DISMISSED, EnumSet.noneOf(CaseStatus.class)); // terminal (case dismissed by the court)
         CASE.put(CaseStatus.WITHDRAWN, EnumSet.noneOf(CaseStatus.class)); // terminal
         CASE.put(CaseStatus.SETTLED, EnumSet.noneOf(CaseStatus.class));   // terminal
 
@@ -60,7 +61,7 @@ public final class LegalStatusPolicy {
     /**
      * The case status a hearing outcome drives the case to. A hearing that is only scheduled (no outcome
      * yet) moves the case to {@code HEARING_SCHEDULED}; a recorded outcome advances it:
-     * {@code ORDER_PASSED → DECREED}, {@code SETTLED → SETTLED}, {@code DISMISSED → WITHDRAWN},
+     * {@code ORDER_PASSED → DECREED}, {@code SETTLED → SETTLED}, {@code DISMISSED → DISMISSED},
      * and {@code ADJOURNED / PARTIALLY_HEARD → HEARING_SCHEDULED} (still in progress). The engine only
      * proposes a target; {@link #assertCaseTransition} still validates it against the current state.
      */
@@ -71,7 +72,7 @@ public final class LegalStatusPolicy {
         return switch (outcome) {
             case ORDER_PASSED -> CaseStatus.DECREED;
             case SETTLED -> CaseStatus.SETTLED;
-            case DISMISSED -> CaseStatus.WITHDRAWN;
+            case DISMISSED -> CaseStatus.DISMISSED;
             case ADJOURNED, PARTIALLY_HEARD -> CaseStatus.HEARING_SCHEDULED;
         };
     }
