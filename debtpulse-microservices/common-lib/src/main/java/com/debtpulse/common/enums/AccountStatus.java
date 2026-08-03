@@ -4,6 +4,7 @@ package com.debtpulse.common.enums;
 public enum AccountStatus {
     ACTIVE,
     SETTLED,
+    RESTRUCTURED,
     LEGAL,
     WRITEOFF,
     CLOSED

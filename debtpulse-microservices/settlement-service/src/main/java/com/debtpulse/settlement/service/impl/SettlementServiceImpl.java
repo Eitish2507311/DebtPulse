@@ -70,6 +70,15 @@ public class SettlementServiceImpl implements SettlementService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new ResourceNotFoundException("Account not found: " + req.accountId());
         }
+        validateAmounts(req);
+        // Only one in-progress settlement per account — a new one is allowed only once any prior
+        // proposal is resolved (PAID / REJECTED / EXPIRED).
+        if (repo.existsByAccountIdAndStatusIn(req.accountId(),
+                List.of(SettlementStatus.DRAFT, SettlementStatus.PENDING_APPROVAL, SettlementStatus.APPROVED))) {
+            throw new BusinessRuleException(
+                    "An in-progress settlement already exists for account " + req.accountId()
+                            + ". Resolve it before creating another.", "SETTLEMENT_IN_PROGRESS");
+        }
         String officerId = AuthContext.currentUserId();
         BigDecimal haircut = computeHaircut(req.totalOutstanding(), req.settlementAmount());
         // Approval authority is DERIVED from the haircut — never supplied by the client.
@@ -157,6 +166,7 @@ public class SettlementServiceImpl implements SettlementService {
                     "Only DRAFT settlements can be updated (current: " + proposal.getStatus() + ")",
                     "INVALID_STATE");
         }
+        validateAmounts(req);
         BigDecimal haircut = computeHaircut(req.totalOutstanding(), req.settlementAmount());
         proposal.setAccountId(req.accountId());
         proposal.setTotalOutstanding(req.totalOutstanding());
@@ -275,6 +285,18 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     // ---- helpers ----
+
+    /** The settlement offer must be positive and cannot exceed the outstanding it settles. */
+    private void validateAmounts(SettlementRequest req) {
+        if (req.settlementAmount() == null || req.totalOutstanding() == null) {
+            return; // bean validation already rejects nulls
+        }
+        if (req.settlementAmount().compareTo(req.totalOutstanding()) > 0) {
+            throw new BusinessRuleException(
+                    "Settlement amount (" + req.settlementAmount() + ") cannot exceed the total outstanding ("
+                            + req.totalOutstanding() + ").", "INVALID_SETTLEMENT_AMOUNT");
+        }
+    }
 
     private BigDecimal computeHaircut(BigDecimal totalOutstanding, BigDecimal settlementAmount) {
         if (totalOutstanding == null || settlementAmount == null

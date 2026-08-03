@@ -4,6 +4,7 @@ import com.debtpulse.settlement.exception.BusinessRuleException;
 import com.debtpulse.settlement.exception.ResourceNotFoundException;
 import com.debtpulse.common.audit.AuditContext;
 import com.debtpulse.common.security.AuthContext;
+import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.RestructuringStatus;
 import com.debtpulse.settlement.dto.request.RestructuringRequest;
 import com.debtpulse.settlement.dto.response.RestructuringResponse;
@@ -50,6 +51,15 @@ public class RestructuringServiceImpl implements RestructuringService {
     public RestructuringResponse create(RestructuringRequest req) {
         if (!accountClient.accountExists(req.accountId())) {
             throw new ResourceNotFoundException("Account not found: " + req.accountId());
+        }
+        // Only one live restructuring plan per account — a new one cannot be raised while an existing
+        // plan is still in force (i.e. anything other than DEFAULTED), so plans are never stacked.
+        boolean hasLivePlan = repo.findByAccountId(req.accountId()).stream()
+                .anyMatch(r -> r.getStatus() != RestructuringStatus.DEFAULTED);
+        if (hasLivePlan) {
+            throw new BusinessRuleException(
+                    "A restructuring plan already exists for account " + req.accountId()
+                            + "; a new one cannot be created while it is in force.", "RESTRUCTURE_IN_PROGRESS");
         }
         assertViable(req);
         String officerId = AuthContext.currentUserId();
@@ -116,6 +126,8 @@ public class RestructuringServiceImpl implements RestructuringService {
         RestructuringProposal saved = repo.save(proposal);
         log.info("Restructuring id={} approved by {}", saved.getRestructureId(), approverId);
         audit(approverId, "RESTRUCTURE_APPROVE", saved.getRestructureId());
+        // Reflect the approved plan on the account so the portfolio shows it as RESTRUCTURED.
+        cascadeAccountStatus(saved.getAccountId(), AccountStatus.RESTRUCTURED);
         return mapper.toDto(saved);
     }
 
@@ -153,6 +165,17 @@ public class RestructuringServiceImpl implements RestructuringService {
                     "Restructuring not viable: revised EMI × tenure (" + capacity
                             + ") is below outstanding minus waiver (" + required + ")",
                     "RESTRUCTURE_NOT_VIABLE");
+        }
+    }
+
+    /** Best-effort lifecycle cascade to account-service; a downstream outage never fails the approval. */
+    private void cascadeAccountStatus(String accountId, AccountStatus status) {
+        if (accountId == null) return;
+        try {
+            accountClient.updateStatus(accountId, status);
+            log.info("Cascaded account {} -> {} after restructuring approval", accountId, status);
+        } catch (Exception ex) {
+            log.warn("Account status cascade ({} -> {}) failed; continuing", accountId, status, ex);
         }
     }
 

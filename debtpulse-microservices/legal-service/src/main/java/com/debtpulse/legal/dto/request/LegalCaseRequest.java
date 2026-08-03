@@ -4,6 +4,7 @@ import com.debtpulse.common.enums.CaseStatus;
 import com.debtpulse.common.enums.CaseType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import java.time.LocalDate;
 
@@ -27,6 +28,9 @@ public record LegalCaseRequest(
         String courtName,
 
         @NotBlank(message = "Case number is required")
+        @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9/\\-]{2,39}$",
+                message = "Case number must be 3–40 characters using letters, digits, '/' or '-' "
+                        + "(e.g. CS/2026/123)")
         String caseNumber,
 
         CaseStatus status

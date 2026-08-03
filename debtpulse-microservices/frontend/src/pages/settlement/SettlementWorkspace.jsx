@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Tabs, Tab, Button, Row, Col, Dropdown, Modal, Table } from 'react-bootstrap';
+import { Tabs, Tab, Button, Row, Col, Dropdown, Modal, Table, InputGroup, Form } from 'react-bootstrap';
 import { settlementApi, restructuringApi } from '../../api/services.js';
 import { usePaged } from '../../hooks/usePaged.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -12,6 +12,22 @@ import Field from '../../components/Field.jsx';
 import { useToast } from '../../components/ToastHost.jsx';
 import { ENUMS } from '../../utils/enums.js';
 import { inr, pct, date, titleCase, today } from '../../utils/format.js';
+
+/** Client-side search box (filters the loaded page) with a clear button. */
+function SearchBar({ value, onChange, placeholder }) {
+  return (
+    <InputGroup size="sm" style={{ maxWidth: 340 }} className="filter-bar">
+      <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
+      <Form.Control value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      {value && <Button variant="outline-secondary" onClick={() => onChange('')}><i className="bi bi-x" /></Button>}
+    </InputGroup>
+  );
+}
+
+const matches = (q, ...fields) => {
+  const s = q.trim().toLowerCase();
+  return !s || fields.some((f) => (f || '').toString().toLowerCase().includes(s));
+};
 
 export default function SettlementWorkspace() {
   const { role } = useAuth();
@@ -36,6 +52,8 @@ function SettlementsTab({ role }) {
   const [decide, setDecide] = useState(null);
   const [paid, setPaid] = useState(null);
   const [view, setView] = useState(null);
+  const [q, setQ] = useState('');
+  const shown = page ? { ...page, content: (page.content || []).filter((r) => matches(q, r.proposalId, r.accountId, r.status)) } : page;
 
   const submit = async (r) => {
     try { await settlementApi.submit(r.proposalId); toast.success('Submitted for approval'); reload(); }
@@ -69,11 +87,12 @@ function SettlementsTab({ role }) {
     ) },
   ];
   return (<>
-    <div className="d-flex justify-content-end mb-2">
+    <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+      <SearchBar value={q} onChange={setQ} placeholder="Search by proposal / account ID or status…" />
       {isOfficer && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />New settlement</Button>}
     </div>
     <ErrorNote error={error} />
-    <DataTable columns={columns} page={page} loading={loading} onPageChange={setPage} emptyIcon="cash-coin" emptyTitle="No settlement proposals" />
+    <DataTable columns={columns} page={shown} loading={loading} onPageChange={setPage} emptyIcon="cash-coin" emptyTitle="No settlement proposals" />
 
     <FormModal show={show} title="New Settlement Proposal" submitLabel="Create"
       initial={{ accountId: '', totalOutstanding: '', settlementAmount: '', paymentDeadline: '', notes: '' }}
@@ -143,12 +162,17 @@ function RestructuringTab({ role }) {
   const fetcher = useCallback((p) => restructuringApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged(fetcher);
   const [show, setShow] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [view, setView] = useState(null);
+  const [q, setQ] = useState('');
+  const shown = page ? { ...page, content: (page.content || []).filter((r) => matches(q, r.restructureId, r.accountId, r.status)) } : page;
 
   const act = async (r, kind) => {
     try { await (kind === 'approve' ? restructuringApi.approve(r.restructureId) : restructuringApi.reject(r.restructureId));
       toast.success(`Proposal ${kind}d`); reload(); }
     catch { toast.error(`Could not ${kind}`); }
   };
+  const pending = (r) => r.status === 'PENDING_APPROVAL' || r.status === 'DRAFT';
 
   const columns = [
     { key: 'restructureId', header: 'Proposal', render: (r) => <span className="text-mono">{r.restructureId}</span> },
@@ -158,32 +182,65 @@ function RestructuringTab({ role }) {
     { key: 'waiverAmount', header: 'Waiver', className: 'text-end', render: (r) => inr(r.waiverAmount) },
     { key: 'startDate', header: 'Start', render: (r) => date(r.startDate) },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-    { key: '_a', header: '', render: (r) => isApprover && r.status === 'PENDING_APPROVAL' && (
+    { key: '_a', header: '', render: (r) => (
       <div className="d-flex gap-1 justify-content-end">
-        <Button size="sm" variant="outline-success" onClick={() => act(r, 'approve')}>Approve</Button>
-        <Button size="sm" variant="outline-danger" onClick={() => act(r, 'reject')}>Reject</Button>
+        <Button size="sm" variant="light" title="View" onClick={() => setView(r)}><i className="bi bi-eye" /></Button>
+        {isOfficer && r.status === 'DRAFT' && <Button size="sm" variant="light" title="Edit" onClick={() => setEdit(r)}><i className="bi bi-pencil" /></Button>}
+        {isApprover && pending(r) && <>
+          <Button size="sm" variant="outline-success" onClick={() => act(r, 'approve')}>Approve</Button>
+          <Button size="sm" variant="outline-danger" onClick={() => act(r, 'reject')}>Reject</Button>
+        </>}
       </div>
     ) },
   ];
+
+  const editFields = (v, set, errs) => (<>
+    <Field label="Account ID" name="accountId" value={v.accountId} onChange={set} error={errs.accountId} required />
+    <Row>
+      <Col md={4}><Field label="Revised Tenure (months)" name="revisedTenure" type="number" min="1" value={v.revisedTenure} onChange={set} error={errs.revisedTenure} required /></Col>
+      <Col md={4}><Field label="Revised EMI" name="revisedEmi" type="number" min="0" value={v.revisedEmi} onChange={set} error={errs.revisedEmi} required /></Col>
+      <Col md={4}><Field label="Waiver Amount" name="waiverAmount" type="number" min="0" value={v.waiverAmount} onChange={set} error={errs.waiverAmount} required /></Col>
+    </Row>
+    <Field label="Start Date" name="startDate" type="date" value={v.startDate} onChange={set} error={errs.startDate} required />
+  </>);
+
   return (<>
-    <div className="d-flex justify-content-end mb-2">
+    <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+      <SearchBar value={q} onChange={setQ} placeholder="Search by proposal / account ID or status…" />
       {isOfficer && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />New restructuring</Button>}
     </div>
     <ErrorNote error={error} />
-    <DataTable columns={columns} page={page} loading={loading} onPageChange={setPage} emptyIcon="arrow-repeat" emptyTitle="No restructuring proposals" />
+    <DataTable columns={columns} page={shown} loading={loading} onPageChange={setPage} emptyIcon="arrow-repeat" emptyTitle="No restructuring proposals" />
+
     <FormModal show={show} title="New Restructuring Proposal" submitLabel="Create"
       initial={{ accountId: '', revisedTenure: '', revisedEmi: '', waiverAmount: '', startDate: today() }}
       onClose={() => setShow(false)} onSaved={reload}
       onSubmit={(v) => restructuringApi.create({ ...v, revisedTenure: Number(v.revisedTenure), revisedEmi: Number(v.revisedEmi), waiverAmount: Number(v.waiverAmount) })}>
-      {(v, set, errs) => (<>
-        <Field label="Account ID" name="accountId" value={v.accountId} onChange={set} error={errs.accountId} required />
-        <Row>
-          <Col md={4}><Field label="Revised Tenure (months)" name="revisedTenure" type="number" min="1" value={v.revisedTenure} onChange={set} error={errs.revisedTenure} required /></Col>
-          <Col md={4}><Field label="Revised EMI" name="revisedEmi" type="number" min="0" value={v.revisedEmi} onChange={set} error={errs.revisedEmi} required /></Col>
-          <Col md={4}><Field label="Waiver Amount" name="waiverAmount" type="number" min="0" value={v.waiverAmount} onChange={set} error={errs.waiverAmount} required /></Col>
-        </Row>
-        <Field label="Start Date" name="startDate" type="date" value={v.startDate} onChange={set} error={errs.startDate} required />
-      </>)}
+      {editFields}
     </FormModal>
+
+    <FormModal show={!!edit} title={`Edit Restructuring ${edit?.restructureId || ''}`} submitLabel="Save changes"
+      initial={edit ? { accountId: edit.accountId, revisedTenure: edit.revisedTenure, revisedEmi: edit.revisedEmi, waiverAmount: edit.waiverAmount, startDate: edit.startDate } : {}}
+      onClose={() => setEdit(null)} onSaved={reload}
+      onSubmit={(v) => restructuringApi.update(edit.restructureId, { ...v, revisedTenure: Number(v.revisedTenure), revisedEmi: Number(v.revisedEmi), waiverAmount: Number(v.waiverAmount) })}>
+      {editFields}
+    </FormModal>
+
+    <Modal show={!!view} onHide={() => setView(null)} centered>
+      <Modal.Header closeButton><Modal.Title className="h6 mb-0">Restructuring {view?.restructureId}</Modal.Title></Modal.Header>
+      <Modal.Body>
+        {view && (
+          <Table borderless size="sm" className="mb-0"><tbody>
+            <tr><td className="text-muted">Account</td><td className="text-end text-mono">{view.accountId}</td></tr>
+            <tr><td className="text-muted">Revised Tenure</td><td className="text-end fw-semibold">{view.revisedTenure} months</td></tr>
+            <tr><td className="text-muted">Revised EMI</td><td className="text-end fw-semibold">{inr(view.revisedEmi)}</td></tr>
+            <tr><td className="text-muted">Waiver Amount</td><td className="text-end">{inr(view.waiverAmount)}</td></tr>
+            <tr><td className="text-muted">Start Date</td><td className="text-end">{date(view.startDate)}</td></tr>
+            <tr><td className="text-muted">Status</td><td className="text-end"><StatusBadge value={view.status} /></td></tr>
+          </tbody></Table>
+        )}
+      </Modal.Body>
+      <Modal.Footer><Button variant="light" onClick={() => setView(null)}>Close</Button></Modal.Footer>
+    </Modal>
   </>);
 }

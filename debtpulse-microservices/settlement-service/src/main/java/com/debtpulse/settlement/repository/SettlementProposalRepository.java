@@ -19,6 +19,8 @@ public interface SettlementProposalRepository
 
     List<SettlementProposal> findByStatus(SettlementStatus status);
 
+    boolean existsByAccountIdAndStatusIn(String accountId, Collection<SettlementStatus> statuses);
+
     List<SettlementProposal> findByStatusNotIn(Collection<SettlementStatus> statuses);
 
     List<SettlementProposal> findByStatusAndPaymentDeadlineBefore(SettlementStatus status, LocalDate date);
