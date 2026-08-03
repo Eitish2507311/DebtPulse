@@ -9,5 +9,6 @@ import java.math.BigDecimal;
  */
 public record CollateralDto(
         String assetId,
+        String accountId,
         BigDecimal estimatedValue
 ) {}

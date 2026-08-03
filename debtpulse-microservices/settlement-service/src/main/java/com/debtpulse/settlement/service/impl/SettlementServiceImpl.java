@@ -319,14 +319,14 @@ public class SettlementServiceImpl implements SettlementService {
                     "Settlement amount (" + req.settlementAmount() + ") must be less than the total outstanding ("
                             + req.totalOutstanding() + ").", "INVALID_SETTLEMENT_AMOUNT");
         }
-        // The stated outstanding must equal the account's actual outstanding (best-effort: skipped if
-        // account-service can't supply it, since existence was already confirmed).
+        // The stated outstanding must equal the account's principal outstanding (best-effort: skipped
+        // if account-service can't supply it, since existence was already confirmed).
         AccountDto account = accountClient.getAccount(req.accountId());
-        if (account != null && account.totalOverdue() != null
-                && req.totalOutstanding().compareTo(account.totalOverdue()) != 0) {
+        if (account != null && account.principalAmount() != null
+                && req.totalOutstanding().compareTo(account.principalAmount()) != 0) {
             throw new BusinessRuleException(
-                    "Total outstanding (" + req.totalOutstanding() + ") must match the account's outstanding ("
-                            + account.totalOverdue() + ").", "OUTSTANDING_MISMATCH");
+                    "Total outstanding (" + req.totalOutstanding() + ") must match the account's principal "
+                            + "outstanding (" + account.principalAmount() + ").", "OUTSTANDING_MISMATCH");
         }
     }
 

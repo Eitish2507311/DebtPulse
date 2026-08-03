@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { Tabs, Tab, Button, Row, Col, Dropdown, InputGroup, Form } from 'react-bootstrap';
-import { visitApi, assetVerificationApi } from '../../api/services.js';
-import { usePaged } from '../../hooks/usePaged.js';
+import { Tabs, Tab, Button, Row, Col, Dropdown, InputGroup, Form, Table } from 'react-bootstrap';
+import { visitApi, assetVerificationApi, collateralApi } from '../../api/services.js';
+import { usePaged, useAsync } from '../../hooks/usePaged.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { ROLES } from '../../auth/roles.js';
-import { PageHeader, ErrorNote, StatusBadge } from '../../components/ui.jsx';
+import { PageHeader, ErrorNote, StatusBadge, EmptyState, Loading } from '../../components/ui.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import FormModal from '../../components/FormModal.jsx';
 import Field from '../../components/Field.jsx';
@@ -114,9 +114,17 @@ function VisitsTab({ canWrite }) {
 function AssetTab({ canWrite }) {
   const fetcher = useCallback((p) => assetVerificationApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged(fetcher);
-  const [show, setShow] = useState(false);
+  const visits = useAsync(() => visitApi.list({ size: 100 }), []);
+  const [reportFor, setReportFor] = useState(null);   // the completed visit being verified
+  const [assets, setAssets] = useState([]);           // collateral on that visit's account
   const [q, setQ] = useState('');
   const shown = page ? { ...page, content: (page.content || []).filter((r) => matches(q, r.reportId, r.visitId, r.assetId)) } : page;
+  const completed = (visits.data?.content || []).filter((v) => v.status === 'COMPLETED');
+
+  const openReport = async (visit) => {
+    setReportFor(visit); setAssets([]);
+    try { const { data } = await collateralApi.byAccount(visit.accountId); setAssets(data || []); } catch { setAssets([]); }
+  };
 
   const columns = [
     { key: 'reportId', header: 'Report', render: (r) => <span className="text-mono">{r.reportId}</span> },
@@ -127,27 +135,53 @@ function AssetTab({ canWrite }) {
     { key: 'verificationDate', header: 'Verified', render: (r) => date(r.verificationDate) },
   ];
   return (<>
+    {canWrite && (
+      <div className="card mb-3">
+        <div className="card-header d-flex justify-content-between align-items-center">
+          <span>Completed visits awaiting verification</span>
+          <span className="text-muted small">Only a completed visit can be verified</span>
+        </div>
+        {visits.loading ? <div className="card-body"><Loading /></div>
+          : !completed.length ? <div className="card-body"><EmptyState icon="clipboard-check" title="No completed visits" message="Complete a field visit to verify its assets." /></div> : (
+          <Table responsive hover className="mb-0"><thead><tr>
+            <th>Visit</th><th>Account</th><th>Officer</th><th>Visited</th><th></th>
+          </tr></thead><tbody>
+            {completed.map((v) => (
+              <tr key={v.visitId}>
+                <td className="text-mono">{v.visitId}</td><td className="text-mono">{v.accountId}</td>
+                <td className="text-mono">{v.officerId}</td><td>{date(v.visitDate)}</td>
+                <td className="text-end"><Button size="sm" onClick={() => openReport(v)}><i className="bi bi-clipboard-plus me-1" />Verify assets</Button></td>
+              </tr>
+            ))}
+          </tbody></Table>
+        )}
+      </div>
+    )}
+
     <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
-      <SearchBar value={q} onChange={setQ} placeholder="Search by report / visit / asset ID…" />
-      {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />New report</Button>}
+      <SearchBar value={q} onChange={setQ} placeholder="Search reports by report / visit / asset ID…" />
     </div>
     <ErrorNote error={error} />
     <DataTable columns={columns} page={shown} loading={loading} onPageChange={setPage} emptyIcon="clipboard-check" emptyTitle="No verification reports" />
-    <FormModal show={show} title="Asset Verification Report" submitLabel="Create report"
-      initial={{ visitId: '', assetId: '', condition: '', currentLocation: '', realisableValue: '', remarks: '', verificationDate: today() }}
-      onClose={() => setShow(false)} onSaved={reload}
-      onSubmit={(v) => assetVerificationApi.create({ ...v, realisableValue: v.realisableValue === '' ? null : Number(v.realisableValue) })}>
+
+    <FormModal show={!!reportFor} title={`Verify assets — visit ${reportFor?.visitId || ''}`} submitLabel="Create report"
+      initial={{ assetId: '', condition: '', currentLocation: '', realisableValue: '', remarks: '', verificationDate: today() }}
+      onClose={() => { setReportFor(null); setAssets([]); }} onSaved={reload}
+      onSubmit={(v) => assetVerificationApi.create({
+        visitId: reportFor.visitId, ...v, realisableValue: v.realisableValue === '' ? null : Number(v.realisableValue) })}>
       {(v, set, errs) => (<>
         <Row>
-          <Col md={6}><Field label="Visit ID" name="visitId" value={v.visitId} onChange={set} error={errs.visitId} required /></Col>
-          <Col md={6}><Field label="Asset ID" name="assetId" value={v.assetId} onChange={set} error={errs.assetId} required /></Col>
+          <Col md={6}><Field label="Asset" name="assetId" type="select"
+            options={assets.map((a) => ({ value: a.assetId, label: `${a.assetId} — ${titleCase(a.assetType)} (${inr(a.estimatedValue)})` }))}
+            value={v.assetId} onChange={set} error={errs.assetId} required
+            help={assets.length ? 'Assets pledged on this account' : 'No collateral registered on this account'} /></Col>
+          <Col md={6}><Field label="Condition" name="condition" type="select" options={ENUMS.AssetCondition} value={v.condition} onChange={set} error={errs.condition} required /></Col>
         </Row>
         <Row>
-          <Col md={6}><Field label="Condition" name="condition" type="select" options={ENUMS.AssetCondition} value={v.condition} onChange={set} error={errs.condition} required /></Col>
-          <Col md={6}><Field label="Realisable Value" name="realisableValue" type="number" min="0" value={v.realisableValue} onChange={set} error={errs.realisableValue} /></Col>
+          <Col md={6}><Field label="Realisable Value" name="realisableValue" type="number" min="0" value={v.realisableValue} onChange={set} error={errs.realisableValue} help="Cannot exceed the asset's estimated value" /></Col>
+          <Col md={6}><Field label="Verification Date" name="verificationDate" type="date" value={v.verificationDate} onChange={set} error={errs.verificationDate} /></Col>
         </Row>
         <Field label="Current Location" name="currentLocation" value={v.currentLocation} onChange={set} error={errs.currentLocation} />
-        <Field label="Verification Date" name="verificationDate" type="date" value={v.verificationDate} onChange={set} error={errs.verificationDate} />
         <Field label="Remarks" name="remarks" type="textarea" value={v.remarks} onChange={set} error={errs.remarks} />
       </>)}
     </FormModal>

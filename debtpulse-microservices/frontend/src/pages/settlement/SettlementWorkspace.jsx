@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Tabs, Tab, Button, Row, Col, Dropdown, Modal, Table, InputGroup, Form } from 'react-bootstrap';
-import { settlementApi, restructuringApi } from '../../api/services.js';
+import { settlementApi, restructuringApi, accountApi } from '../../api/services.js';
 import { usePaged } from '../../hooks/usePaged.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { ROLES, APPROVERS } from '../../auth/roles.js';
@@ -98,15 +98,25 @@ function SettlementsTab({ role }) {
       initial={{ accountId: '', totalOutstanding: '', settlementAmount: '', paymentDeadline: '', notes: '' }}
       onClose={() => setShow(false)} onSaved={reload}
       onSubmit={(v) => settlementApi.create({ ...v, totalOutstanding: Number(v.totalOutstanding), settlementAmount: Number(v.settlementAmount) })}>
-      {(v, set, errs) => (<>
-        <Field label="Account ID" name="accountId" value={v.accountId} onChange={set} error={errs.accountId} required />
-        <Row>
-          <Col md={6}><Field label="Total Outstanding" name="totalOutstanding" type="number" min="0" value={v.totalOutstanding} onChange={set} error={errs.totalOutstanding} required /></Col>
-          <Col md={6}><Field label="Settlement Amount" name="settlementAmount" type="number" min="0" value={v.settlementAmount} onChange={set} error={errs.settlementAmount} help="Haircut & approval chain derived automatically" required /></Col>
-          <Col md={6}><Field label="Payment Deadline" name="paymentDeadline" type="date" value={v.paymentDeadline} onChange={set} error={errs.paymentDeadline} help="Date by which the settlement must be paid" required /></Col>
-          <Col md={12}><Field label="Remarks" name="notes" type="textarea" value={v.notes} onChange={set} error={errs.notes} help="The required approvers (L1→L2→L3) are set by the haircut — you don't choose the level." /></Col>
-        </Row>
-      </>)}
+      {(v, set, errs) => {
+        const loadOutstanding = async () => {
+          if (!v.accountId?.trim()) { toast.error('Enter an account ID first'); return; }
+          try { const { data } = await accountApi.get(v.accountId.trim()); set('totalOutstanding', data.principalAmount); }
+          catch { toast.error('Account not found'); }
+        };
+        return (<>
+          <Row className="align-items-end">
+            <Col md={8}><Field label="Account ID" name="accountId" value={v.accountId} onChange={set} error={errs.accountId} required /></Col>
+            <Col md={4}><Button variant="outline-primary" className="mb-3 w-100" onClick={loadOutstanding}>Load outstanding</Button></Col>
+          </Row>
+          <Row>
+            <Col md={6}><Field label="Total Outstanding" name="totalOutstanding" type="number" value={v.totalOutstanding} onChange={set} error={errs.totalOutstanding} disabled help="Auto-filled from the account's principal outstanding" required /></Col>
+            <Col md={6}><Field label="Settlement Amount" name="settlementAmount" type="number" min="0" value={v.settlementAmount} onChange={set} error={errs.settlementAmount} help="Must be less than the outstanding" required /></Col>
+            <Col md={6}><Field label="Payment Deadline" name="paymentDeadline" type="date" value={v.paymentDeadline} onChange={set} error={errs.paymentDeadline} help="Date by which the settlement must be paid" required /></Col>
+            <Col md={12}><Field label="Remarks" name="notes" type="textarea" value={v.notes} onChange={set} error={errs.notes} help="The required approvers (L1→L2→L3) are set by the haircut — you don't choose the level." /></Col>
+          </Row>
+        </>);
+      }}
     </FormModal>
 
     <FormModal show={!!decide} title={`Record Decision — ${decide?.currentStep || ''} approval`} submitLabel="Submit decision"

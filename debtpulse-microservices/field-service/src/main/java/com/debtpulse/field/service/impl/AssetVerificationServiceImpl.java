@@ -61,14 +61,23 @@ public class AssetVerificationServiceImpl implements AssetVerificationService {
                     "Asset verification can only be recorded for a COMPLETED visit (visit "
                             + req.visitId() + " is " + visit.getStatus() + ").", "VISIT_NOT_COMPLETED");
         }
-        if (req.realisableValue() != null) {
-            CollateralDto asset = accountClient.getCollateral(req.assetId());
-            if (asset != null && asset.estimatedValue() != null
-                    && req.realisableValue().compareTo(asset.estimatedValue()) > 0) {
-                throw new BusinessRuleException(
-                        "Realisable value (" + req.realisableValue() + ") cannot exceed the asset's "
-                                + "estimated value (" + asset.estimatedValue() + ").", "REALISABLE_EXCEEDS_ESTIMATE");
-            }
+        CollateralDto asset = accountClient.getCollateral(req.assetId());
+        if (asset == null) {
+            throw new BusinessRuleException(
+                    "Collateral asset not found or could not be verified: " + req.assetId(), "ASSET_NOT_FOUND");
+        }
+        // The asset must belong to the same account the visit was made against.
+        if (asset.accountId() != null && !asset.accountId().equals(visit.getAccountId())) {
+            throw new BusinessRuleException(
+                    "Asset " + req.assetId() + " does not belong to the account of visit " + req.visitId()
+                            + " (" + visit.getAccountId() + ").", "ASSET_ACCOUNT_MISMATCH");
+        }
+        // Realisable value can't exceed the asset's appraised estimate.
+        if (req.realisableValue() != null && asset.estimatedValue() != null
+                && req.realisableValue().compareTo(asset.estimatedValue()) > 0) {
+            throw new BusinessRuleException(
+                    "Realisable value (" + req.realisableValue() + ") cannot exceed the asset's estimated "
+                            + "value (" + asset.estimatedValue() + ").", "REALISABLE_EXCEEDS_ESTIMATE");
         }
     }
 
