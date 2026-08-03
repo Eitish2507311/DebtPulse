@@ -83,6 +83,7 @@ function SettlementsTab({ role }) {
         <Row>
           <Col md={6}><Field label="Total Outstanding" name="totalOutstanding" type="number" min="0" value={v.totalOutstanding} onChange={set} error={errs.totalOutstanding} required /></Col>
           <Col md={6}><Field label="Settlement Amount" name="settlementAmount" type="number" min="0" value={v.settlementAmount} onChange={set} error={errs.settlementAmount} help="Haircut & approval chain derived automatically" required /></Col>
+          <Col md={6}><Field label="Payment Deadline" name="paymentDeadline" type="date" value={v.paymentDeadline} onChange={set} error={errs.paymentDeadline} help="Date by which the settlement must be paid" required /></Col>
           <Col md={12}><Field label="Remarks" name="notes" type="textarea" value={v.notes} onChange={set} error={errs.notes} help="The required approvers (L1→L2→L3) are set by the haircut — you don't choose the level." /></Col>
         </Row>
       </>)}
