@@ -142,11 +142,20 @@ public class AllocationServiceImpl implements AllocationService {
     public DelinquentAccount autoAllocate(DelinquentAccount account) {
         // Import-time placement: apply the matching allocation rule (bucket/branch/strategy/capacity),
         // falling back to the least-loaded collection agent when no rule matches. The caller persists.
-        if (allocate(account, activeAllocationRules())) {
-            notifyAllocation(account, account.getAssignedAgentId());
-        } else {
-            log.warn("autoAllocate: no eligible agent for account loanRef={} — left unassigned",
-                    account.getLoanRef());
+        // Allocation is best-effort: if it can't run (e.g. auth-service unreachable) the account is
+        // still created, just left unassigned to be picked up by a later allocation/escalation run —
+        // onboarding must never fail because an agent couldn't be chosen right now.
+        try {
+            if (allocate(account, activeAllocationRules())) {
+                notifyAllocation(account, account.getAssignedAgentId());
+            } else {
+                log.warn("autoAllocate: no eligible agent for account loanRef={} — left unassigned",
+                        account.getLoanRef());
+            }
+        } catch (Exception ex) {
+            account.setAssignedAgentId(null);
+            log.warn("autoAllocate: allocation unavailable for loanRef={} — left unassigned ({})",
+                    account.getLoanRef(), ex.getMessage());
         }
         return account;
     }

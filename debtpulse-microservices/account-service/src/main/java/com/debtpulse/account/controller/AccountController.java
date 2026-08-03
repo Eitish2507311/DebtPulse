@@ -16,6 +16,8 @@ import com.debtpulse.common.security.AuthContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -44,6 +46,7 @@ import java.util.Map;
 @Tag(name = "Accounts", description = "Delinquent account portfolio management")
 public class AccountController {
 
+    private static final Logger log = LoggerFactory.getLogger(AccountController.class);
     private static final String ENTITY_TYPE = "DelinquentAccount";
     private static final String SOURCE_SERVICE = "account-service";
 
@@ -110,7 +113,9 @@ public class AccountController {
                     // Surface a clean, human-readable reason — never a raw SQL/driver message.
                     errors.add("line " + lineNo + ": " + ex.getMessage());
                 } catch (Exception ex) {
-                    errors.add("line " + lineNo + ": could not import this row");
+                    // Unexpected failure — log the real cause server-side for diagnosis, show a short reason.
+                    log.warn("CSV import: row {} failed", lineNo, ex);
+                    errors.add("line " + lineNo + ": could not import this row (" + ex.getClass().getSimpleName() + ")");
                 }
             }
         } catch (Exception ex) {
