@@ -13,7 +13,10 @@ public class ContactClientFallback implements ContactClient {
 
     @Override
     public long activePtpCount(String accountId) {
-        log.warn("contact-service unavailable — activePtpCount({}) falling back to 0", accountId);
-        return 0L;
+        // Fail-safe: report a non-zero count so the escalation engine treats the account as
+        // PTP-protected and leaves it in place while contact-service is unavailable — never escalate
+        // an account whose promise-to-pay status we could not confirm.
+        log.warn("contact-service unavailable — activePtpCount({}) failing safe to 1 (treat as active PTP)", accountId);
+        return 1L;
     }
 }

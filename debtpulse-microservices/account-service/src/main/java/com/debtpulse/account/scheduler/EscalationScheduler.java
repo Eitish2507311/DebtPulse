@@ -23,7 +23,7 @@ public class EscalationScheduler {
         this.allocationService = allocationService;
     }
 
-    @Scheduled(cron = "${allocation.escalation.cron:0 */1 * * * ?}")
+    @Scheduled(cron = "${allocation.escalation.cron:0 0 2 * * ?}")
     public void runEscalation() {
         log.info("EscalationScheduler: starting escalation run");
         int reassigned = allocationService.reassignForEscalation();

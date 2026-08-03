@@ -160,8 +160,10 @@ public class AllocationServiceImpl implements AllocationService {
             if (rule.getTargetRole() == null) {
                 continue;
             }
-            // Never yank an account away while a Promise-To-Pay is still active.
-            if (contactClient.activePtpCount(account.getAccountId()) > 0) {
+            // Never yank an account away while a Promise-To-Pay is still active. If contact-service
+            // can't be reached, skip this account (fail-safe: don't escalate what we can't verify)
+            // rather than letting one failed call abort the whole escalation run.
+            if (hasActivePtp(account.getAccountId())) {
                 continue;
             }
 
@@ -185,6 +187,21 @@ public class AllocationServiceImpl implements AllocationService {
     }
 
     // ---- helpers ----
+
+    /**
+     * True if the account has an active Promise-To-Pay. On any contact-service failure this returns
+     * {@code true} (fail-safe): an account we cannot verify is treated as PTP-protected and left where
+     * it is, so a transient outage can neither wrongly escalate an account nor abort the whole run.
+     */
+    private boolean hasActivePtp(String accountId) {
+        try {
+            return contactClient.activePtpCount(accountId) > 0;
+        } catch (Exception ex) {
+            log.warn("Could not check active PTP for account {} — skipping escalation this run ({})",
+                    accountId, ex.getMessage());
+            return true;
+        }
+    }
 
     /** Active initial-allocation rules (autoEscalate=false), highest priority first. */
     private List<AllocationRule> activeAllocationRules() {
