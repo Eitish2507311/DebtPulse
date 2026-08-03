@@ -39,6 +39,7 @@ public class AllocationServiceImpl implements AllocationService {
     private static final String SOURCE_SERVICE = "account-service";
     private static final String ENTITY_TYPE = "DelinquentAccount";
     private static final String ESCALATION_CATEGORY = "ESCALATION";
+    private static final String ALLOCATION_CATEGORY = "ALLOCATION";
 
     private final AllocationRuleRepository ruleRepo;
     private final DelinquentAccountRepository accountRepo;
@@ -115,6 +116,7 @@ public class AllocationServiceImpl implements AllocationService {
         for (DelinquentAccount account : unassigned) {
             if (allocate(account, allocationRules)) {
                 accountRepo.save(account);
+                notifyAllocation(account, account.getAssignedAgentId());
                 audit("ALLOCATE", account.getAccountId());
                 assigned++;
             }
@@ -133,7 +135,9 @@ public class AllocationServiceImpl implements AllocationService {
     public DelinquentAccount autoAllocate(DelinquentAccount account) {
         // Import-time placement: apply the matching allocation rule (bucket/branch/strategy/capacity),
         // falling back to the least-loaded collection agent when no rule matches. The caller persists.
-        if (!allocate(account, activeAllocationRules())) {
+        if (allocate(account, activeAllocationRules())) {
+            notifyAllocation(account, account.getAssignedAgentId());
+        } else {
             log.warn("autoAllocate: no eligible agent for account loanRef={} — left unassigned",
                     account.getLoanRef());
         }
@@ -259,6 +263,19 @@ public class AllocationServiceImpl implements AllocationService {
             load.put(agent.userId(), accountRepo.countByAssignedAgentId(agent.userId()));
         }
         return load;
+    }
+
+    /** Best-effort alert to the agent an account was just allocated to (fallback logs if down). */
+    private void notifyAllocation(DelinquentAccount account, String target) {
+        if (target == null || target.isBlank()) {
+            return;
+        }
+        String message = String.format(
+                "Account %s (%s, DPD %d) has been allocated to you — you can now log contact attempts "
+                        + "and record promises-to-pay for it.",
+                account.getAccountId(), account.getBucket(),
+                account.getDpd() == null ? 0 : account.getDpd());
+        notificationClient.notify(new NotificationRequest(target, message, ALLOCATION_CATEGORY));
     }
 
     /** Best-effort alert to the officer an account was just escalated to (fallback logs if down). */

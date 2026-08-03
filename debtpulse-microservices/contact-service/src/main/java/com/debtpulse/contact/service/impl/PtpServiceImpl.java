@@ -57,6 +57,8 @@ public class PtpServiceImpl implements PtpService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // A collections agent may only act on accounts allocated to them.
+        assertAgentOwnsAccount(req.accountId());
         // A promise can never exceed what the borrower actually owes.
         validateAmountWithinDue(req.accountId(), req.ptpAmount());
         // One active promise per account: reject an identical ACTIVE PTP (same amount + commitment
@@ -101,6 +103,7 @@ public class PtpServiceImpl implements PtpService {
     @Override
     public PtpDto update(String id, PtpRequest req) {
         PromiseToPay entity = find(id);
+        assertAgentOwnsAccount(entity.getAccountId());
         // An edited amount also may not exceed the outstanding due.
         validateAmountWithinDue(entity.getAccountId(), req.ptpAmount());
         entity.setPtpDate(req.ptpDate());
@@ -125,6 +128,7 @@ public class PtpServiceImpl implements PtpService {
     @Override
     public PtpDto recordPayment(String id, BigDecimal actualPaidAmount) {
         PromiseToPay entity = find(id);
+        assertAgentOwnsAccount(entity.getAccountId());
         entity.setActualPaidAmount(actualPaidAmount);
         boolean kept = actualPaidAmount != null
                 && entity.getPtpAmount() != null
@@ -139,6 +143,7 @@ public class PtpServiceImpl implements PtpService {
     @Override
     public PtpDto reschedule(String id, LocalDate newCommitmentDate) {
         PromiseToPay entity = find(id);
+        assertAgentOwnsAccount(entity.getAccountId());
         entity.setCommitmentDate(newCommitmentDate);
         entity.setStatus(PtpStatus.RESCHEDULED);
         PromiseToPay saved = repo.save(entity);
@@ -211,6 +216,22 @@ public class PtpServiceImpl implements PtpService {
             return AuthContext.currentUserId();
         }
         return requestedAgentId;
+    }
+
+    /**
+     * A collections agent may only act on accounts allocated to them; managers/admins are exempt.
+     * Fail-closed: if the account can't be read, deny.
+     */
+    private void assertAgentOwnsAccount(String accountId) {
+        if (!Role.COLLECTIONS_AGENT.name().equals(AuthContext.currentRole())) {
+            return;
+        }
+        AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new BusinessRuleException(
+                    "Account " + accountId + " is not allocated to you.", "ACCOUNT_NOT_ALLOCATED");
+        }
     }
 
     private PromiseToPay find(String id) {

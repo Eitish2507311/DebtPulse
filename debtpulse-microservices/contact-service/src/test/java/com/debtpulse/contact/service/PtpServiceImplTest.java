@@ -12,11 +12,17 @@ import com.debtpulse.contact.feign.dto.NotificationRequest;
 import com.debtpulse.contact.mapper.PtpMapper;
 import com.debtpulse.contact.repository.PromiseToPayRepository;
 import com.debtpulse.contact.service.impl.PtpServiceImpl;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.List;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,6 +43,9 @@ class PtpServiceImplTest {
     @Mock private AuthClient authClient;
 
     @InjectMocks private PtpServiceImpl service;
+
+    @AfterEach
+    void clearAuth() { SecurityContextHolder.clearContext(); }
 
     private PtpRequest request() {
         return new PtpRequest("ACC-1", "USR-002", LocalDate.now(),
@@ -64,6 +73,22 @@ class PtpServiceImplTest {
 
         verify(repo, never()).save(any());
         verify(notificationClient, never()).notify(any());
+    }
+
+    @Test
+    void create_asAgent_onAccountNotAllocatedToThem_throws() {
+        // Logged in as agent C1, but the account is allocated to C2.
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "C1", null, List.of(new SimpleGrantedAuthority("ROLE_COLLECTIONS_AGENT"))));
+        when(accountClient.accountExists("ACC-1")).thenReturn(true);
+        when(accountClient.getAccount("ACC-1")).thenReturn(new AccountDto(
+                "ACC-1", null, null, null, null, null, null, new BigDecimal("9999.00"), null, null, null, "C2"));
+
+        assertThatThrownBy(() -> service.create(request()))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("not allocated to you");
+
+        verify(repo, never()).save(any());
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.debtpulse.common.enums.ContactOutcome;
 import com.debtpulse.contact.entity.ContactAttempt;
 import com.debtpulse.contact.feign.AccountClient;
 import com.debtpulse.contact.feign.AuthClient;
+import com.debtpulse.contact.feign.dto.AccountDto;
 import com.debtpulse.contact.feign.dto.AuditLogRequest;
 import com.debtpulse.contact.mapper.ContactAttemptMapper;
 import com.debtpulse.contact.repository.ContactAttemptRepository;
@@ -52,6 +53,8 @@ public class ContactServiceImpl implements ContactService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // A collections agent may only act on accounts allocated to them.
+        assertAgentOwnsAccount(req.accountId());
         // A collections agent always logs the attempt under their own id; managers/admins may
         // record on behalf of an agent supplied in the request.
         String agentId = resolveAgentId(req.agentId());
@@ -112,6 +115,22 @@ public class ContactServiceImpl implements ContactService {
             return AuthContext.currentUserId();
         }
         return requestedAgentId;
+    }
+
+    /**
+     * A collections agent may only act on accounts allocated to them; managers/admins are exempt
+     * (they may act on behalf of an agent). Fail-closed: if the account can't be read, deny.
+     */
+    private void assertAgentOwnsAccount(String accountId) {
+        if (!Role.COLLECTIONS_AGENT.name().equals(AuthContext.currentRole())) {
+            return;
+        }
+        AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new BusinessRuleException(
+                    "Account " + accountId + " is not allocated to you.", "ACCOUNT_NOT_ALLOCATED");
+        }
     }
 
     private ContactAttempt find(String id) {

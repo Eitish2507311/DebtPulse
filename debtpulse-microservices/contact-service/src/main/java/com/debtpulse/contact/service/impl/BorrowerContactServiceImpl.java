@@ -4,11 +4,13 @@ import com.debtpulse.contact.exception.BusinessRuleException;
 import com.debtpulse.contact.exception.ResourceNotFoundException;
 import com.debtpulse.common.security.AuthContext;
 import com.debtpulse.common.enums.BorrowerContactStatus;
+import com.debtpulse.common.enums.Role;
 import com.debtpulse.contact.dto.request.BorrowerContactRequest;
 import com.debtpulse.contact.dto.response.BorrowerContactDto;
 import com.debtpulse.contact.entity.BorrowerContact;
 import com.debtpulse.contact.feign.AccountClient;
 import com.debtpulse.contact.feign.AuthClient;
+import com.debtpulse.contact.feign.dto.AccountDto;
 import com.debtpulse.contact.feign.dto.AuditLogRequest;
 import com.debtpulse.contact.mapper.BorrowerContactMapper;
 import com.debtpulse.contact.repository.BorrowerContactRepository;
@@ -46,6 +48,8 @@ public class BorrowerContactServiceImpl implements BorrowerContactService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // A collections agent may only act on accounts allocated to them.
+        assertAgentOwnsAccount(req.accountId());
         BorrowerContact entity = BorrowerContact.builder()
                 .accountId(req.accountId())
                 .contactType(req.contactType())
@@ -69,6 +73,7 @@ public class BorrowerContactServiceImpl implements BorrowerContactService {
     @Override
     public BorrowerContactDto update(String id, BorrowerContactRequest req) {
         BorrowerContact entity = find(id);
+        assertAgentOwnsAccount(entity.getAccountId());
         if (req.contactType() != null) entity.setContactType(req.contactType());
         if (req.name() != null) entity.setName(req.name());
         if (req.phone() != null) entity.setPhone(req.phone());
@@ -83,6 +88,7 @@ public class BorrowerContactServiceImpl implements BorrowerContactService {
     @Override
     public void delete(String id) {
         BorrowerContact entity = find(id);
+        assertAgentOwnsAccount(entity.getAccountId());
         repo.delete(entity);
         log.info("Borrower contact deleted id={}", id);
         audit("DELETE", id);
@@ -96,6 +102,22 @@ public class BorrowerContactServiceImpl implements BorrowerContactService {
     @Override
     public List<BorrowerContactDto> listByAccount(String accountId) {
         return repo.findByAccountId(accountId).stream().map(mapper::toDto).toList();
+    }
+
+    /**
+     * A collections agent may only act on accounts allocated to them; managers/admins are exempt.
+     * Fail-closed: if the account can't be read, deny.
+     */
+    private void assertAgentOwnsAccount(String accountId) {
+        if (!Role.COLLECTIONS_AGENT.name().equals(AuthContext.currentRole())) {
+            return;
+        }
+        AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new BusinessRuleException(
+                    "Account " + accountId + " is not allocated to you.", "ACCOUNT_NOT_ALLOCATED");
+        }
     }
 
     private BorrowerContact find(String id) {
