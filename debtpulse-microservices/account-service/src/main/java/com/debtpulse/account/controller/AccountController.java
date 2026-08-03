@@ -61,6 +61,9 @@ public class AccountController {
     }
 
     @GetMapping
+    // Read access is wider than write: field officers and portfolio managers may browse the portfolio
+    // (e.g. a field officer looks up a collateral asset id for verification) but cannot mutate it.
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT','FIELD_OFFICER','PORTFOLIO_MANAGER')")
     @Operation(summary = "List delinquent accounts (paginated, filterable, sorted by DPD desc)")
     public ResponseEntity<PageResponse<DelinquentAccount>> list(
             @RequestParam(defaultValue = "0") int page,
@@ -76,6 +79,7 @@ public class AccountController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT','FIELD_OFFICER','PORTFOLIO_MANAGER')")
     public ResponseEntity<DelinquentAccount> getById(@PathVariable String id) {
         return ResponseEntity.ok(accountService.getById(id));
     }
