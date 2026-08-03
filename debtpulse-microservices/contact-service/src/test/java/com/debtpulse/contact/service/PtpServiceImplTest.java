@@ -7,6 +7,7 @@ import com.debtpulse.contact.entity.PromiseToPay;
 import com.debtpulse.contact.feign.AccountClient;
 import com.debtpulse.contact.feign.AuthClient;
 import com.debtpulse.contact.feign.NotificationClient;
+import com.debtpulse.contact.feign.dto.AccountDto;
 import com.debtpulse.contact.feign.dto.NotificationRequest;
 import com.debtpulse.contact.mapper.PtpMapper;
 import com.debtpulse.contact.repository.PromiseToPayRepository;
@@ -63,6 +64,21 @@ class PtpServiceImplTest {
 
         verify(repo, never()).save(any());
         verify(notificationClient, never()).notify(any());
+    }
+
+    @Test
+    void create_amountExceedsDue_throwsAndDoesNotSave() {
+        PtpRequest req = new PtpRequest("ACC-1", "USR-002", LocalDate.now(),
+                new BigDecimal("5000.00"), LocalDate.now().plusDays(7), null);
+        when(accountClient.accountExists("ACC-1")).thenReturn(true);
+        when(accountClient.getAccount("ACC-1")).thenReturn(new AccountDto(
+                "ACC-1", null, null, null, null, null, null, new BigDecimal("1000.00"), null, null, null, null));
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("exceeds the outstanding due");
+
+        verify(repo, never()).save(any());
     }
 
     @Test

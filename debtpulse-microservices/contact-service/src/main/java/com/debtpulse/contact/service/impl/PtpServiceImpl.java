@@ -9,6 +9,7 @@ import com.debtpulse.contact.dto.request.PtpRequest;
 import com.debtpulse.contact.dto.response.PtpDto;
 import com.debtpulse.contact.entity.PromiseToPay;
 import com.debtpulse.contact.feign.AccountClient;
+import com.debtpulse.contact.feign.dto.AccountDto;
 import com.debtpulse.contact.feign.AuthClient;
 import com.debtpulse.contact.feign.NotificationClient;
 import com.debtpulse.contact.feign.dto.AuditLogRequest;
@@ -56,6 +57,8 @@ public class PtpServiceImpl implements PtpService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // A promise can never exceed what the borrower actually owes.
+        validateAmountWithinDue(req.accountId(), req.ptpAmount());
         // One active promise per account: reject an identical ACTIVE PTP (same amount + commitment
         // date). A genuinely different commitment is allowed; to change an existing one, edit it.
         boolean duplicate = repo.findByAccountIdAndStatus(req.accountId(), PtpStatus.ACTIVE).stream()
@@ -98,6 +101,8 @@ public class PtpServiceImpl implements PtpService {
     @Override
     public PtpDto update(String id, PtpRequest req) {
         PromiseToPay entity = find(id);
+        // An edited amount also may not exceed the outstanding due.
+        validateAmountWithinDue(entity.getAccountId(), req.ptpAmount());
         entity.setPtpDate(req.ptpDate());
         entity.setPtpAmount(req.ptpAmount());
         entity.setCommitmentDate(req.commitmentDate());
@@ -182,6 +187,23 @@ public class PtpServiceImpl implements PtpService {
             log.info("PTP breach sweep marked {} PTP(s) BROKEN", lapsed.size());
         }
         return lapsed.size();
+    }
+
+    /**
+     * Reject a PTP whose amount exceeds the account's outstanding due. Best-effort: if the account
+     * (or its due amount) can't be read — e.g. account-service is momentarily down — the check is
+     * skipped rather than blocking, since existence was already confirmed upstream.
+     */
+    private void validateAmountWithinDue(String accountId, BigDecimal amount) {
+        if (amount == null) return;
+        AccountDto account = accountClient.getAccount(accountId);
+        if (account == null || account.totalOverdue() == null) return;
+        if (amount.compareTo(account.totalOverdue()) > 0) {
+            throw new BusinessRuleException(
+                    "PTP amount " + amount + " exceeds the outstanding due amount "
+                            + account.totalOverdue() + " for account " + accountId + ".",
+                    "PTP_AMOUNT_EXCEEDS_DUE");
+        }
     }
 
     private String resolveAgentId(String requestedAgentId) {

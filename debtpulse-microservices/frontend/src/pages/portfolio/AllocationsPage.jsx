@@ -101,7 +101,7 @@ export default function AllocationsPage() {
           <Row>
             <Col md={6}><Field label="Rule Name" name="name" value={v.name} onChange={set} error={errs.name} required /></Col>
             <Col md={6}><Field label="Strategy" name="strategy" type="select" options={ENUMS.AllocationStrategy} value={v.strategy} onChange={set} error={errs.strategy} required /></Col>
-            <Col md={6}><Field label="Bucket" name="bucket" type="select" options={ENUMS.DpdBucket} value={v.bucket} onChange={set} error={errs.bucket} /></Col>
+            <Col md={6}><Field label="Bucket" name="bucket" type="select" options={ENUMS.DpdBucket} blankLabel="Any bucket" value={v.bucket} onChange={set} error={errs.bucket} help="Leave as Any to apply to every bucket" /></Col>
             <Col md={6}><Field label="Target Role" name="targetRole" type="select" options={ENUMS.Role} value={v.targetRole} onChange={set} error={errs.targetRole} required /></Col>
             <Col md={4}><Field label="Days in Bucket" name="daysInBucketThreshold" type="number" min="0" value={v.daysInBucketThreshold} onChange={set} error={errs.daysInBucketThreshold} help="Stagnation threshold" /></Col>
             <Col md={4}><Field label="Min DPD" name="minDpd" type="number" min="0" value={v.minDpd} onChange={set} error={errs.minDpd} /></Col>

@@ -7,7 +7,7 @@ import { titleCase } from '../utils/format.js';
  */
 export default function Field({
   label, name, type = 'text', value, onChange, options, error, required,
-  placeholder, min, step, help, disabled, autoFocus,
+  placeholder, min, step, help, disabled, autoFocus, blankLabel = '— select —',
 }) {
   const invalid = !!error;
   const common = {
@@ -21,7 +21,7 @@ export default function Field({
       {label && <Form.Label className={required ? 'required' : ''}>{label}</Form.Label>}
       {type === 'select' ? (
         <Form.Select {...common}>
-          <option value="">— select —</option>
+          <option value="">{blankLabel}</option>
           {(options || []).map((o) => {
             const val = typeof o === 'string' ? o : o.value;
             const lbl = typeof o === 'string' ? titleCase(o) : o.label;
