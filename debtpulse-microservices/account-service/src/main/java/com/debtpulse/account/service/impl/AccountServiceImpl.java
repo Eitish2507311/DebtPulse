@@ -2,10 +2,15 @@ package com.debtpulse.account.service.impl;
 
 import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.DpdBucket;
+import com.debtpulse.common.enums.VerificationStatus;
+import com.debtpulse.account.dto.request.CreateAccountRequest;
 import com.debtpulse.account.dto.request.UpdateAccountRequest;
+import com.debtpulse.account.entity.CollateralAsset;
 import com.debtpulse.account.entity.DelinquentAccount;
 import com.debtpulse.account.feign.AuthClient;
+import com.debtpulse.account.mapper.AccountMapper;
 import com.debtpulse.account.repository.AccountSpecifications;
+import com.debtpulse.account.repository.CollateralAssetRepository;
 import com.debtpulse.account.repository.DelinquentAccountRepository;
 import com.debtpulse.account.service.AccountService;
 import com.debtpulse.account.service.AllocationService;
@@ -16,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -27,15 +33,21 @@ public class AccountServiceImpl implements AccountService {
     private static final Logger log = LoggerFactory.getLogger(AccountServiceImpl.class);
 
     private final DelinquentAccountRepository repo;
+    private final CollateralAssetRepository collateralRepo;
     private final AllocationService allocationService;
     private final AuthClient authClient;
+    private final AccountMapper mapper;
 
     public AccountServiceImpl(DelinquentAccountRepository repo,
+                              CollateralAssetRepository collateralRepo,
                               AllocationService allocationService,
-                              AuthClient authClient) {
+                              AuthClient authClient,
+                              AccountMapper mapper) {
         this.repo = repo;
+        this.collateralRepo = collateralRepo;
         this.allocationService = allocationService;
         this.authClient = authClient;
+        this.mapper = mapper;
     }
 
     @Override
@@ -61,6 +73,42 @@ public class AccountServiceImpl implements AccountService {
         DelinquentAccount saved = repo.save(account);
         log.info("Imported account loanRef={} bucket={} agent={} by {}",
                 saved.getLoanRef(), saved.getBucket(), saved.getAssignedAgentId(), userId);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public DelinquentAccount onboard(CreateAccountRequest req, String userId) {
+        // Unique loan reference — checked up front so callers get a clean message, not a DB error.
+        if (repo.existsByLoanRef(req.loanRef())) {
+            throw new BusinessRuleException("Duplicate loan reference: " + req.loanRef(), "DUPLICATE_LOAN_REF");
+        }
+        boolean secured = Boolean.TRUE.equals(req.secured());
+        boolean hasCollateral = req.assetType() != null && req.estimatedValue() != null;
+        // A secured loan cannot exist without its collateral.
+        if (secured && !hasCollateral) {
+            throw new BusinessRuleException(
+                    "A secured loan requires collateral (asset type and estimated value).",
+                    "COLLATERAL_REQUIRED");
+        }
+
+        DelinquentAccount account = mapper.toEntity(req);
+        account.setSecured(secured);
+        DelinquentAccount saved = importAccount(account, userId);
+
+        // Persist the collateral in the same transaction, so a secured loan is never left without it.
+        if (hasCollateral) {
+            CollateralAsset asset = CollateralAsset.builder()
+                    .accountId(saved.getAccountId())
+                    .assetType(req.assetType())
+                    .description(req.assetDescription())
+                    .estimatedValue(req.estimatedValue())
+                    .verificationStatus(VerificationStatus.UNVERIFIED)
+                    .build();
+            collateralRepo.save(asset);
+            log.info("Collateral {} ({}) registered with account {}",
+                    asset.getAssetId(), asset.getAssetType(), saved.getAccountId());
+        }
         return saved;
     }
 

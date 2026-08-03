@@ -109,11 +109,20 @@ export default function AccountsPage() {
         emptyIcon="folder2-open" emptyTitle="No accounts" emptyMessage="Create an account to get started." />
 
       <FormModal show={showCreate} title="New Delinquent Account" submitLabel="Create account"
-        initial={{ loanRef: '', borrowerName: '', phone: '', address: '', branchId: '', principalAmount: '', totalOverdue: '', dpd: '' }}
+        initial={{ loanRef: '', borrowerName: '', phone: '', address: '', branchId: '', principalAmount: '', totalOverdue: '', dpd: '',
+          secured: 'false', assetType: '', assetDescription: '', estimatedValue: '' }}
         onClose={() => setShowCreate(false)} onSaved={reload}
-        onSubmit={(v) => accountApi.create({
-          ...v, principalAmount: Number(v.principalAmount), totalOverdue: Number(v.totalOverdue), dpd: Number(v.dpd),
-        })}>
+        onSubmit={(v) => {
+          const isSecured = v.secured === 'true';
+          return accountApi.create({
+            loanRef: v.loanRef, borrowerName: v.borrowerName, phone: v.phone, address: v.address, branchId: v.branchId,
+            principalAmount: Number(v.principalAmount), totalOverdue: Number(v.totalOverdue), dpd: Number(v.dpd),
+            secured: isSecured,
+            assetType: isSecured ? (v.assetType || null) : null,
+            assetDescription: isSecured ? (v.assetDescription || null) : null,
+            estimatedValue: isSecured && v.estimatedValue !== '' ? Number(v.estimatedValue) : null,
+          });
+        }}>
         {(v, set, errs) => (
           <Row>
             <Col md={6}><Field label="Loan Reference" name="loanRef" value={v.loanRef} onChange={set} error={errs.loanRef} required /></Col>
@@ -124,22 +133,39 @@ export default function AccountsPage() {
             <Col md={4}><Field label="Principal" name="principalAmount" type="number" min="0" value={v.principalAmount} onChange={set} error={errs.principalAmount} required /></Col>
             <Col md={4}><Field label="Total Overdue" name="totalOverdue" type="number" min="0" value={v.totalOverdue} onChange={set} error={errs.totalOverdue} required /></Col>
             <Col md={4}><Field label="DPD" name="dpd" type="number" min="0" value={v.dpd} onChange={set} error={errs.dpd} help="Bucket is derived" required /></Col>
+            <Col md={12}><hr className="my-1" /></Col>
+            <Col md={4}><Field label="Loan Type" name="secured" type="select"
+              options={[{ value: 'false', label: 'Unsecured' }, { value: 'true', label: 'Secured (has collateral)' }]}
+              value={v.secured} onChange={set} blankLabel="Unsecured"
+              help="Secured loans require a collateral asset" /></Col>
+            {v.secured === 'true' && <>
+              <Col md={4}><Field label="Asset Type" name="assetType" type="select" options={ENUMS.AssetType} value={v.assetType} onChange={set} error={errs.assetType} required /></Col>
+              <Col md={4}><Field label="Estimated Value" name="estimatedValue" type="number" min="0" value={v.estimatedValue} onChange={set} error={errs.estimatedValue} required /></Col>
+              <Col md={12}><Field label="Asset Description" name="assetDescription" value={v.assetDescription} onChange={set} error={errs.assetDescription} /></Col>
+            </>}
           </Row>
         )}
       </FormModal>
 
-      <Modal show={showImport} onHide={closeImport} centered>
+      <Modal show={showImport} onHide={closeImport} centered size="lg">
         <Modal.Header closeButton><Modal.Title>Bulk import accounts (CSV)</Modal.Title></Modal.Header>
         <Modal.Body>
+          <p className="small text-muted mb-1">Columns (header row required):</p>
+          <p className="small mb-2"><code>loanRef, borrowerName, phone, address, principal, overdue, dpd, branchId, secured, assetType, assetDescription, estimatedValue</code></p>
           <p className="small text-muted mb-2">
-            Columns (header row required): <code>loanRef, borrowerName, phone, address, principal, overdue, dpd, [branchId]</code>.
+            The last five are optional. For a <strong>secured</strong> row set <code>secured=true</code> and provide
+            <code> assetType</code> (PROPERTY/VEHICLE/GOLD/MACHINERY/STOCKS) and <code>estimatedValue</code>.
           </p>
           <Form.Control type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
           {importResult && (
             <div className="mt-3 small">
               <div className="text-success fw-semibold">Imported: {importResult.importedCount}</div>
-              {importResult.errorCount > 0 && <div className="text-danger fw-semibold">Errors: {importResult.errorCount}</div>}
-              {(importResult.errors || []).slice(0, 6).map((er, i) => <div key={i} className="text-muted">• {er}</div>)}
+              {importResult.errorCount > 0 && <div className="text-danger fw-semibold mb-1">Errors: {importResult.errorCount}</div>}
+              {importResult.errorCount > 0 && (
+                <div className="border rounded p-2 bg-light" style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {(importResult.errors || []).map((er, i) => <div key={i} className="text-danger">• {er}</div>)}
+                </div>
+              )}
             </div>
           )}
         </Modal.Body>

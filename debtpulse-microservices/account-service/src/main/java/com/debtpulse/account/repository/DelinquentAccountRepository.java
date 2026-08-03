@@ -17,6 +17,8 @@ import java.util.List;
 public interface DelinquentAccountRepository extends JpaRepository<DelinquentAccount, String>,
         JpaSpecificationExecutor<DelinquentAccount> {
 
+    boolean existsByLoanRef(String loanRef);
+
     List<DelinquentAccount> findByStatus(AccountStatus status);
 
     List<DelinquentAccount> findByStatusAndAssignedAgentIdIsNull(AccountStatus status);

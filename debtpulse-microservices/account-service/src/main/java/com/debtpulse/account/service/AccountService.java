@@ -2,6 +2,7 @@ package com.debtpulse.account.service;
 
 import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.DpdBucket;
+import com.debtpulse.account.dto.request.CreateAccountRequest;
 import com.debtpulse.account.dto.request.UpdateAccountRequest;
 import com.debtpulse.account.entity.DelinquentAccount;
 import org.springframework.data.domain.Page;
@@ -19,6 +20,13 @@ public interface AccountService {
 
     /** Classify the bucket from DPD, persist, then attempt auto-allocation to an agent. */
     DelinquentAccount importAccount(DelinquentAccount account, String userId);
+
+    /**
+     * Onboard an account from a request atomically: enforce unique loan reference and the
+     * secured-loan collateral rule, create the account (classify + allocate) and, when supplied,
+     * its collateral asset — both in one transaction.
+     */
+    DelinquentAccount onboard(CreateAccountRequest request, String userId);
 
     DpdBucket classifyBucket(int dpd);
 

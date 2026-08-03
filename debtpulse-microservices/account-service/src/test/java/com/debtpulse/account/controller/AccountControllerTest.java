@@ -2,6 +2,7 @@ package com.debtpulse.account.controller;
 
 import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.DpdBucket;
+import com.debtpulse.account.dto.request.CreateAccountRequest;
 import com.debtpulse.account.entity.DelinquentAccount;
 import com.debtpulse.account.feign.AuthClient;
 import com.debtpulse.account.mapper.AccountMapper;
@@ -62,7 +63,7 @@ class AccountControllerTest {
         DelinquentAccount saved = DelinquentAccount.builder()
                 .accountId("ACC-9").loanRef("LN-9").borrowerName("Ben")
                 .bucket(DpdBucket.X30).status(AccountStatus.ACTIVE).build();
-        when(accountService.importAccount(any(DelinquentAccount.class), any())).thenReturn(saved);
+        when(accountService.onboard(any(CreateAccountRequest.class), any())).thenReturn(saved);
 
         mockMvc.perform(post("/api/accounts")
                         .contentType(MediaType.APPLICATION_JSON)

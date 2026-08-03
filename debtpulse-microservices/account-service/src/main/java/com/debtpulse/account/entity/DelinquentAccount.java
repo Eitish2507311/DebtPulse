@@ -52,6 +52,10 @@ public class DelinquentAccount {
     @Enumerated(EnumType.STRING)
     private DpdBucket bucket;
 
+    /** True for a secured loan (backed by collateral); false for unsecured (credit card, personal loan). */
+    @Builder.Default
+    private boolean secured = false;
+
     @Builder.Default
     private Integer daysInCurrentBucket = 0;
 

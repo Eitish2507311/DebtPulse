@@ -1,6 +1,7 @@
 package com.debtpulse.account.controller;
 
 import com.debtpulse.common.enums.AccountStatus;
+import com.debtpulse.common.enums.AssetType;
 import com.debtpulse.common.enums.DpdBucket;
 import com.debtpulse.account.dto.request.CreateAccountRequest;
 import com.debtpulse.account.dto.request.UpdateAccountRequest;
@@ -76,13 +77,14 @@ public class AccountController {
     @PostMapping
     @Operation(summary = "Create a delinquent account (bucket derived, auto-allocated)")
     public ResponseEntity<DelinquentAccount> create(@Valid @RequestBody CreateAccountRequest req) {
-        DelinquentAccount saved = accountService.importAccount(mapper.toEntity(req), AuthContext.currentUserId());
+        DelinquentAccount saved = accountService.onboard(req, AuthContext.currentUserId());
         audit("CREATE", saved.getAccountId());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PostMapping(value = "/import/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Bulk-import accounts from a CSV (loanRef,borrowerName,phone,address,principal,overdue,dpd,[branchId])")
+    @Operation(summary = "Bulk-import accounts from a CSV (loanRef,borrowerName,phone,address,"
+            + "principal,overdue,dpd,[branchId,secured,assetType,assetDescription,estimatedValue])")
     public ResponseEntity<Map<String, Object>> importCsv(@RequestPart("file") MultipartFile file) {
         List<String> imported = new ArrayList<>();
         List<String> errors = new ArrayList<>();
@@ -96,25 +98,14 @@ public class AccountController {
                 lineNo++;
                 if (lineNo == 1) continue;            // skip header
                 if (line.isBlank()) continue;
-                String[] c = line.split(",", -1);
                 try {
-                    if (c.length < 7) {
-                        throw new IllegalArgumentException("expected at least 7 columns, got " + c.length);
-                    }
-                    DelinquentAccount account = DelinquentAccount.builder()
-                            .loanRef(c[0].trim())
-                            .borrowerName(c[1].trim())
-                            .phone(c[2].trim())
-                            .address(c[3].trim())
-                            .principalAmount(new BigDecimal(c[4].trim()))
-                            .totalOverdue(new BigDecimal(c[5].trim()))
-                            .dpd(Integer.parseInt(c[6].trim()))
-                            .branchId(c.length >= 8 && !c[7].isBlank() ? c[7].trim() : null)
-                            .build();
-                    DelinquentAccount saved = accountService.importAccount(account, userId);
-                    imported.add(saved.getLoanRef());
-                } catch (Exception ex) {
+                    CreateAccountRequest req = parseCsvRow(line.split(",", -1));
+                    imported.add(accountService.onboard(req, userId).getLoanRef());
+                } catch (BusinessRuleException | IllegalArgumentException ex) {
+                    // Surface a clean, human-readable reason — never a raw SQL/driver message.
                     errors.add("line " + lineNo + ": " + ex.getMessage());
+                } catch (Exception ex) {
+                    errors.add("line " + lineNo + ": could not import this row");
                 }
             }
         } catch (Exception ex) {
@@ -128,6 +119,61 @@ public class AccountController {
         summary.put("imported", imported);
         summary.put("errors", errors);
         return ResponseEntity.ok(summary);
+    }
+
+    /** Parse one CSV row into an onboarding request, throwing a friendly message on any bad cell. */
+    private CreateAccountRequest parseCsvRow(String[] c) {
+        if (c.length < 7) {
+            throw new IllegalArgumentException("expected at least 7 columns, got " + c.length);
+        }
+        String loanRef = c[0].trim();
+        if (loanRef.isBlank()) throw new IllegalArgumentException("loan reference is required");
+        String borrowerName = c[1].trim();
+        if (borrowerName.isBlank()) throw new IllegalArgumentException("borrower name is required");
+
+        BigDecimal principal = parseAmount(c[4], "principal");
+        BigDecimal overdue = parseAmount(c[5], "overdue");
+        int dpd = parseInt(c[6], "dpd");
+        String branchId = c.length >= 8 && !c[7].isBlank() ? c[7].trim() : null;
+        boolean secured = c.length >= 9 && parseBool(c[8]);
+        AssetType assetType = c.length >= 10 && !c[9].isBlank() ? parseAssetType(c[9]) : null;
+        String assetDesc = c.length >= 11 && !c[10].isBlank() ? c[10].trim() : null;
+        BigDecimal estValue = c.length >= 12 && !c[11].isBlank() ? parseAmount(c[11], "estimatedValue") : null;
+
+        return new CreateAccountRequest(loanRef, borrowerName, c[2].trim(), c[3].trim(), branchId,
+                principal, overdue, dpd, secured, assetType, assetDesc, estValue);
+    }
+
+    private static BigDecimal parseAmount(String raw, String field) {
+        try {
+            return new BigDecimal(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("invalid number for " + field + ": '" + raw.trim() + "'");
+        }
+    }
+
+    private static int parseInt(String raw, String field) {
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("invalid whole number for " + field + ": '" + raw.trim() + "'");
+        }
+    }
+
+    private static boolean parseBool(String raw) {
+        String v = raw.trim().toLowerCase();
+        if (v.isEmpty() || v.equals("false") || v.equals("no") || v.equals("0")) return false;
+        if (v.equals("true") || v.equals("yes") || v.equals("1")) return true;
+        throw new IllegalArgumentException("secured must be true or false, got '" + raw.trim() + "'");
+    }
+
+    private static AssetType parseAssetType(String raw) {
+        try {
+            return AssetType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unknown asset type '" + raw.trim()
+                    + "' (expected one of PROPERTY, VEHICLE, GOLD, MACHINERY, STOCKS)");
+        }
     }
 
     @PutMapping("/{id}")
