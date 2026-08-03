@@ -103,7 +103,8 @@ public class AccountServiceImpl implements AccountService {
                     .assetType(req.assetType())
                     .description(req.assetDescription())
                     .estimatedValue(req.estimatedValue())
-                    .verificationStatus(VerificationStatus.UNVERIFIED)
+                    .verificationStatus(VerificationStatus.VERIFIED)
+                    .lastVerifiedDate(java.time.LocalDateTime.now())
                     .build();
             collateralRepo.save(asset);
             log.info("Collateral {} ({}) registered with account {}",

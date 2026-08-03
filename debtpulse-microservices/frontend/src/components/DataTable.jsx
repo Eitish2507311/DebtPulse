@@ -20,7 +20,9 @@ export default function DataTable({
   return (
     <div className="card">
       <div className="table-responsive">
-        <Table hover className="align-middle mb-0">
+        {/* dp-stack: on phones the CSS collapses each row into a label:value card so wide tables
+            never overflow off-screen (see theme.css). data-label feeds the per-cell labels. */}
+        <Table hover className="align-middle mb-0 dp-stack">
           <thead>
             <tr>{columns.map((c) => <th key={c.key} className={c.className}>{c.header}</th>)}</tr>
           </thead>
@@ -30,7 +32,10 @@ export default function DataTable({
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={onRowClick ? 'cursor-pointer' : ''}>
                 {columns.map((c) => (
-                  <td key={c.key} className={c.className}>{c.render ? c.render(row) : row[c.key] ?? '—'}</td>
+                  <td key={c.key} className={c.className}
+                      data-label={typeof c.header === 'string' ? c.header : ''}>
+                    {c.render ? c.render(row) : row[c.key] ?? '—'}
+                  </td>
                 ))}
               </tr>
             ))}

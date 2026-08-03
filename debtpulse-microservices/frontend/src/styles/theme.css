@@ -310,6 +310,33 @@ a:hover { color: var(--dp-blue-800); }
   .topbar { gap: .35rem; padding: 0 .6rem; }
 }
 
+/* Responsive data tables: on phones a wide table (many columns) can't fit, so collapse each row
+   into a stacked "label: value" card instead of overflowing off-screen. Only DataTable's tables opt
+   in via .dp-stack, so raw/detail tables are unaffected. */
+@media (max-width: 640px) {
+  .dp-stack thead { display: none; }
+  .dp-stack, .dp-stack tbody { display: block; width: 100%; }
+  .dp-stack tr {
+    display: block; padding: .35rem .75rem;
+    border-bottom: 8px solid var(--dp-surface-2);
+  }
+  .dp-stack tbody tr:hover { background: transparent; }
+  .dp-stack td {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    text-align: right; border: 0; padding: .4rem 0;
+    border-bottom: 1px solid var(--dp-border); font-size: .84rem;
+  }
+  .dp-stack td:last-child { border-bottom: 0; }
+  .dp-stack td::before {
+    content: attr(data-label);
+    flex: 0 0 auto; margin-right: auto; text-align: left;
+    font-weight: 700; color: var(--dp-navy-600); text-transform: uppercase;
+    font-size: .66rem; letter-spacing: .04em;
+  }
+  /* the trailing actions cell has no label — let its controls take the full row width */
+  .dp-stack td[data-label=""] { justify-content: flex-end; }
+}
+
 /* ==========================================================================
    Preference control (light/dark + font resize) — adapts to its context by
    inheriting text colour, so it reads correctly on the dark nav and light topbar.

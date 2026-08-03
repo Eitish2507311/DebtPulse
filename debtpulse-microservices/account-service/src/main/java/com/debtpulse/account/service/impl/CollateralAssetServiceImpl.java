@@ -41,7 +41,11 @@ public class CollateralAssetServiceImpl implements CollateralAssetService {
         if (!accountRepo.existsById(req.accountId())) {
             throw new ResourceNotFoundException("Account not found: " + req.accountId());
         }
-        CollateralAsset saved = repo.save(mapper.toEntity(req));
+        CollateralAsset entity = mapper.toEntity(req);
+        // Registered collateral is considered verified at origination; a field visit re-verifies later.
+        entity.setVerificationStatus(VerificationStatus.VERIFIED);
+        entity.setLastVerifiedDate(java.time.LocalDateTime.now());
+        CollateralAsset saved = repo.save(entity);
         log.info("Created collateral asset id={} for account={} type={}",
                 saved.getAssetId(), saved.getAccountId(), saved.getAssetType());
         return saved;

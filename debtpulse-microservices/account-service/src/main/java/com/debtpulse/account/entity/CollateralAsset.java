@@ -35,9 +35,11 @@ public class CollateralAsset {
 
     private BigDecimal estimatedValue;
 
+    // Verified at loan origination (the asset was appraised when the secured loan was granted).
+    // A field officer re-verifies it on a physical visit, which refreshes lastVerifiedDate.
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
+    private VerificationStatus verificationStatus = VerificationStatus.VERIFIED;
 
     private LocalDateTime lastVerifiedDate;
 }
