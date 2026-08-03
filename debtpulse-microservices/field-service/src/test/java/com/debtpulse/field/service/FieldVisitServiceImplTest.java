@@ -88,6 +88,21 @@ class FieldVisitServiceImplTest {
     }
 
     @Test
+    void schedule_asFieldOfficer_accountNotAllocatedToThem_throws() {
+        authenticateAs("USR-9", "FIELD_OFFICER");
+        ScheduleVisitRequest req = new ScheduleVisitRequest("ACC-1", "USR-9",
+                LocalDate.now().plusDays(2), null);
+        when(accountClient.accountExists("ACC-1")).thenReturn(true);
+        // account is allocated to a different officer
+        when(accountClient.getAccount("ACC-1")).thenReturn(new com.debtpulse.field.feign.dto.AccountDto(
+                "ACC-1", null, null, null, null, null, null, null, null, null, null, "USR-OTHER"));
+
+        assertThatThrownBy(() -> service.schedule(req))
+                .isInstanceOf(com.debtpulse.field.exception.UnauthorizedActionException.class);
+        verify(repo, never()).save(any());
+    }
+
+    @Test
     void schedule_unknownAccount_throwsAndDoesNotSave() {
         ScheduleVisitRequest req = new ScheduleVisitRequest("ACC-X", "USR-9",
                 LocalDate.now().plusDays(1), null);

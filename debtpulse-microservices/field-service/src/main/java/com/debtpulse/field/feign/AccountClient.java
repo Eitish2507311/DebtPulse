@@ -1,5 +1,6 @@
 package com.debtpulse.field.feign;
 
+import com.debtpulse.field.feign.dto.AccountDto;
 import com.debtpulse.field.feign.fallback.AccountClientFallback;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,9 @@ public interface AccountClient {
 
     @GetMapping("/accounts/{id}/exists")
     boolean accountExists(@PathVariable String id);
+
+    @GetMapping("/accounts/{id}")
+    AccountDto getAccount(@PathVariable String id);
 
     @PostMapping("/collateral-assets/{assetId}/mark-verified")
     void markCollateralVerified(@PathVariable String assetId);

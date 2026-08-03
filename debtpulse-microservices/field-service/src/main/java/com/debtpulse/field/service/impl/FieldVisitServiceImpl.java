@@ -59,6 +59,8 @@ public class FieldVisitServiceImpl implements FieldVisitService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // A field officer may only schedule visits for accounts allocated to them.
+        assertOfficerOwnsAccount(req.accountId());
         // The assigned officer must exist, be ACTIVE, and actually be a FIELD_OFFICER (#11).
         UserDto officer = authClient.getUser(req.officerId());
         if (officer == null) {
@@ -150,6 +152,22 @@ public class FieldVisitServiceImpl implements FieldVisitService {
     private FieldVisit find(String id) {
         return repo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Field visit not found: " + id));
+    }
+
+    /**
+     * A field officer may only schedule visits for accounts allocated to them; admins and portfolio
+     * managers are exempt. Fail-closed: if the account can't be read, deny.
+     */
+    private void assertOfficerOwnsAccount(String accountId) {
+        if (!"FIELD_OFFICER".equals(AuthContext.currentRole())) {
+            return;
+        }
+        com.debtpulse.field.feign.dto.AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new UnauthorizedActionException(
+                    "Account " + accountId + " is not allocated to you.");
+        }
     }
 
     /**
