@@ -10,7 +10,12 @@ eureka:
     register-with-eureka: true
     fetch-registry: true
   instance:
-    prefer-ip-address: true
+    # Every service (plus Eureka and the gateway) runs on this one machine, so register on loopback.
+    # prefer-ip-address would publish the machine's LAN/VPN IP, which a corporate host firewall often
+    # blocks — that surfaces as "No route to host" on inter-service Feign calls and "Connection
+    # prematurely closed BEFORE response" at the gateway. 127.0.0.1 is never firewalled.
+    prefer-ip-address: false
+    hostname: localhost
     lease-renewal-interval-in-seconds: 10
 
 # JWT signing secret shared between auth-service (issuer) and api-gateway (validator).

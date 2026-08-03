@@ -114,11 +114,18 @@ public class AllocationServiceImpl implements AllocationService {
 
         int assigned = 0;
         for (DelinquentAccount account : unassigned) {
-            if (allocate(account, allocationRules)) {
-                accountRepo.save(account);
-                notifyAllocation(account, account.getAssignedAgentId());
-                audit("ALLOCATE", account.getAccountId());
-                assigned++;
+            // Isolate each account: a downstream failure (e.g. auth-service unreachable) skips this
+            // one and moves on, so one bad call never aborts the whole allocation run.
+            try {
+                if (allocate(account, allocationRules)) {
+                    accountRepo.save(account);
+                    notifyAllocation(account, account.getAssignedAgentId());
+                    audit("ALLOCATE", account.getAccountId());
+                    assigned++;
+                }
+            } catch (Exception ex) {
+                log.warn("Allocation skipped for account {} this run — {}",
+                        account.getAccountId(), ex.getMessage());
             }
         }
         log.info("executeAllocation: assigned {} of {} unassigned account(s) using {} allocation rule(s)",
@@ -152,34 +159,40 @@ public class AllocationServiceImpl implements AllocationService {
         int reassigned = 0;
 
         for (DelinquentAccount account : accountRepo.findByStatus(AccountStatus.ACTIVE)) {
-            Optional<AllocationRule> matched = engine.selectRule(account, escalationRules);
-            if (matched.isEmpty()) {
-                continue;
-            }
-            AllocationRule rule = matched.get();
-            if (rule.getTargetRole() == null) {
-                continue;
-            }
-            // Never yank an account away while a Promise-To-Pay is still active. If contact-service
-            // can't be reached, skip this account (fail-safe: don't escalate what we can't verify)
-            // rather than letting one failed call abort the whole escalation run.
-            if (hasActivePtp(account.getAccountId())) {
-                continue;
-            }
+            // Isolate each account: any downstream failure (contact-service or auth-service
+            // unreachable, etc.) skips this account for this run rather than aborting the whole job.
+            try {
+                Optional<AllocationRule> matched = engine.selectRule(account, escalationRules);
+                if (matched.isEmpty()) {
+                    continue;
+                }
+                AllocationRule rule = matched.get();
+                if (rule.getTargetRole() == null) {
+                    continue;
+                }
+                // Never yank an account away while a Promise-To-Pay is still active. If contact-service
+                // can't be reached, hasActivePtp fails safe (treats it as protected) so we don't escalate.
+                if (hasActivePtp(account.getAccountId())) {
+                    continue;
+                }
 
-            String target = pickTarget(rule, account);
-            if (target == null) {
-                continue;
+                String target = pickTarget(rule, account);
+                if (target == null) {
+                    continue;
+                }
+                // Idempotency: already assigned to an eligible target-role user → nothing to do.
+                if (target.equals(account.getAssignedAgentId())) {
+                    continue;
+                }
+                account.setAssignedAgentId(target);
+                accountRepo.save(account);
+                notifyEscalation(account, rule, target);
+                audit("ESCALATION", account.getAccountId());
+                reassigned++;
+            } catch (Exception ex) {
+                log.warn("Escalation skipped for account {} this run — {}",
+                        account.getAccountId(), ex.getMessage());
             }
-            // Idempotency: already assigned to an eligible target-role user → nothing to do.
-            if (target.equals(account.getAssignedAgentId())) {
-                continue;
-            }
-            account.setAssignedAgentId(target);
-            accountRepo.save(account);
-            notifyEscalation(account, rule, target);
-            audit("ESCALATION", account.getAccountId());
-            reassigned++;
         }
         log.info("reassignForEscalation: reassigned {} account(s) using {} escalation rule(s)",
                 reassigned, escalationRules.size());
