@@ -135,11 +135,19 @@ public class AccountServiceImpl implements AccountService {
         if (req.daysInCurrentBucket() != null) account.setDaysInCurrentBucket(req.daysInCurrentBucket());
         if (req.status() != null) account.setStatus(req.status());
         // Manual (admin) re-assignment: a blank value clears the assignment, leaving it for allocation.
+        String previousAgent = account.getAssignedAgentId();
+        boolean agentReassigned = false;
         if (req.assignedAgentId() != null) {
-            account.setAssignedAgentId(req.assignedAgentId().isBlank() ? null : req.assignedAgentId().trim());
+            String newAgent = req.assignedAgentId().isBlank() ? null : req.assignedAgentId().trim();
+            agentReassigned = !java.util.Objects.equals(previousAgent, newAgent);
+            account.setAssignedAgentId(newAgent);
         }
         DelinquentAccount saved = repo.save(account);
         log.info("Updated account id={} bucket={} status={}", saved.getAccountId(), saved.getBucket(), saved.getStatus());
+        // Notify the new owner of a manual re-assignment, mirroring the escalation/allocation flow.
+        if (agentReassigned && saved.getAssignedAgentId() != null) {
+            allocationService.notifyAssignment(saved, saved.getAssignedAgentId());
+        }
         return saved;
     }
 

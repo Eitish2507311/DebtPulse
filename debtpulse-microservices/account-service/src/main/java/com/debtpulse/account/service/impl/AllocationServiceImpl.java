@@ -304,6 +304,23 @@ public class AllocationServiceImpl implements AllocationService {
         return load;
     }
 
+    @Override
+    public void notifyAssignment(DelinquentAccount account, String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            return;
+        }
+        String message = String.format(
+                "Account %s (%s, DPD %d) has been assigned to you — you can now work it.",
+                account.getAccountId(), account.getBucket(),
+                account.getDpd() == null ? 0 : account.getDpd());
+        try {
+            notificationClient.notify(new NotificationRequest(agentId, message, ALLOCATION_CATEGORY));
+        } catch (Exception ex) {
+            log.warn("Assignment notification to {} for account {} failed; continuing ({})",
+                    agentId, account.getAccountId(), ex.getMessage());
+        }
+    }
+
     /** Best-effort alert to the agent an account was just allocated to (fallback logs if down). */
     private void notifyAllocation(DelinquentAccount account, String target) {
         if (target == null || target.isBlank()) {

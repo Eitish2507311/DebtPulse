@@ -37,4 +37,7 @@ public interface AllocationService {
      * @return number of accounts reassigned
      */
     int reassignForEscalation();
+
+    /** Best-effort notification to an agent that an account has been assigned to them (manual re-assignment). */
+    void notifyAssignment(DelinquentAccount account, String agentId);
 }
