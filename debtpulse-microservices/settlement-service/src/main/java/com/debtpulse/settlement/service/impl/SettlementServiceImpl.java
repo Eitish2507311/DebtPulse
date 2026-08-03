@@ -8,8 +8,10 @@ import com.debtpulse.common.security.AuthContext;
 import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.ApprovalDecision;
 import com.debtpulse.common.enums.ApprovalLevel;
+import com.debtpulse.common.enums.Role;
 import com.debtpulse.common.enums.SettlementStatus;
 import com.debtpulse.settlement.dto.request.ApprovalDecisionRequest;
+import com.debtpulse.settlement.feign.dto.AccountDto;
 import com.debtpulse.settlement.dto.request.SettlementRequest;
 import com.debtpulse.settlement.dto.response.SettlementResponse;
 import com.debtpulse.settlement.entity.ApprovalStep;
@@ -70,6 +72,7 @@ public class SettlementServiceImpl implements SettlementService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new ResourceNotFoundException("Account not found: " + req.accountId());
         }
+        assertOfficerOwnsAccount(req.accountId());
         validateAmounts(req);
         // Only one in-progress settlement per account — a new one is allowed only once any prior
         // proposal is resolved (PAID / REJECTED / EXPIRED).
@@ -166,6 +169,7 @@ public class SettlementServiceImpl implements SettlementService {
                     "Only DRAFT settlements can be updated (current: " + proposal.getStatus() + ")",
                     "INVALID_STATE");
         }
+        assertOfficerOwnsAccount(proposal.getAccountId());
         validateAmounts(req);
         BigDecimal haircut = computeHaircut(req.totalOutstanding(), req.settlementAmount());
         proposal.setAccountId(req.accountId());
@@ -285,6 +289,22 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     // ---- helpers ----
+
+    /**
+     * A settlement officer may only raise/edit proposals for accounts allocated to them; admins and
+     * approvers are exempt. Fail-closed: if the account can't be read, deny.
+     */
+    private void assertOfficerOwnsAccount(String accountId) {
+        if (!Role.SETTLEMENT_OFFICER.name().equals(AuthContext.currentRole())) {
+            return;
+        }
+        AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new BusinessRuleException(
+                    "Account " + accountId + " is not allocated to you.", "ACCOUNT_NOT_ALLOCATED");
+        }
+    }
 
     /** The settlement offer must be positive and cannot exceed the outstanding it settles. */
     private void validateAmounts(SettlementRequest req) {

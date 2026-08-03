@@ -78,7 +78,8 @@ function ContactsTab({ canWrite }) {
         <SmartSearch value={q} onChange={setQ} placeholder="Search by Contact ID or Account ID…" />
         <InputGroup style={{ maxWidth: 240 }}>
           <InputGroup.Text><i className="bi bi-person-badge" /></InputGroup.Text>
-          <Form.Control placeholder="Agent ID…" value={agentId} onChange={(e) => setAgentId(e.target.value)} />
+          <Form.Control placeholder="Filter by Agent ID…" value={agentId} onChange={(e) => setAgentId(e.target.value)} />
+          {agentId && <Button variant="outline-secondary" onClick={() => setAgentId('')}><i className="bi bi-x" /></Button>}
         </InputGroup>
       </div>
       {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />Log contact</Button>}

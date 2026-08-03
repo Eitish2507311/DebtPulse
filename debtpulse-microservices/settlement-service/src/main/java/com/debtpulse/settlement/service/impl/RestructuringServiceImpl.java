@@ -6,6 +6,7 @@ import com.debtpulse.common.audit.AuditContext;
 import com.debtpulse.common.security.AuthContext;
 import com.debtpulse.common.enums.AccountStatus;
 import com.debtpulse.common.enums.RestructuringStatus;
+import com.debtpulse.common.enums.Role;
 import com.debtpulse.settlement.dto.request.RestructuringRequest;
 import com.debtpulse.settlement.dto.response.RestructuringResponse;
 import com.debtpulse.settlement.entity.RestructuringProposal;
@@ -52,6 +53,7 @@ public class RestructuringServiceImpl implements RestructuringService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new ResourceNotFoundException("Account not found: " + req.accountId());
         }
+        assertOfficerOwnsAccount(req.accountId());
         // Only one live restructuring plan per account — a new one cannot be raised while an existing
         // plan is still in force (i.e. anything other than DEFAULTED), so plans are never stacked.
         boolean hasLivePlan = repo.findByAccountId(req.accountId()).stream()
@@ -105,6 +107,7 @@ public class RestructuringServiceImpl implements RestructuringService {
                     "Only DRAFT restructuring proposals can be updated (current: " + proposal.getStatus() + ")",
                     "INVALID_STATE");
         }
+        assertOfficerOwnsAccount(proposal.getAccountId());
         assertViable(req);
         proposal.setAccountId(req.accountId());
         proposal.setRevisedTenure(req.revisedTenure());
@@ -165,6 +168,22 @@ public class RestructuringServiceImpl implements RestructuringService {
                     "Restructuring not viable: revised EMI × tenure (" + capacity
                             + ") is below outstanding minus waiver (" + required + ")",
                     "RESTRUCTURE_NOT_VIABLE");
+        }
+    }
+
+    /**
+     * A settlement officer may only raise/edit restructurings for accounts allocated to them; admins
+     * and approvers are exempt. Fail-closed: if the account can't be read, deny.
+     */
+    private void assertOfficerOwnsAccount(String accountId) {
+        if (!Role.SETTLEMENT_OFFICER.name().equals(AuthContext.currentRole())) {
+            return;
+        }
+        AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new BusinessRuleException(
+                    "Account " + accountId + " is not allocated to you.", "ACCOUNT_NOT_ALLOCATED");
         }
     }
 

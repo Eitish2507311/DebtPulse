@@ -9,6 +9,8 @@ import com.debtpulse.common.enums.CaseStatus;
 import com.debtpulse.common.enums.HearingOutcome;
 import com.debtpulse.common.enums.OrderStatus;
 import com.debtpulse.common.enums.OrderType;
+import com.debtpulse.common.enums.Role;
+import com.debtpulse.legal.feign.dto.AccountDto;
 import com.debtpulse.legal.dto.request.CourtHearingRequest;
 import com.debtpulse.legal.dto.request.LegalCaseRequest;
 import com.debtpulse.legal.dto.request.RecoveryOrderRequest;
@@ -78,6 +80,8 @@ public class LegalServiceImpl implements LegalService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // A legal officer can only file cases for accounts allocated to them.
+        assertOfficerOwnsAccount(req.accountId());
         // Case numbers must be unique across the register.
         if (caseRepo.existsByCaseNumber(req.caseNumber())) {
             throw new BusinessRuleException(
@@ -130,6 +134,7 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public LegalCaseDto updateCase(String id, LegalCaseRequest req) {
         LegalCase legalCase = findCase(id);
+        assertOfficerOwnsAccount(legalCase.getAccountId());
         if (req.caseType() != null) legalCase.setCaseType(req.caseType());
         if (req.filingDate() != null) legalCase.setFilingDate(req.filingDate());
         if (req.courtName() != null) legalCase.setCourtName(req.courtName());
@@ -158,6 +163,7 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public CourtHearingDto addHearing(CourtHearingRequest req) {
         LegalCase legalCase = findCase(req.caseId());
+        assertOfficerOwnsAccount(legalCase.getAccountId());
 
         // (3) A concluded case (DECREED / SETTLED / WITHDRAWN) can no longer take a hearing.
         LegalStatusPolicy.assertHearingAllowed(legalCase.getStatus());
@@ -223,6 +229,7 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public RecoveryOrderDto issueOrder(RecoveryOrderRequest req) {
         LegalCase legalCase = findCase(req.caseId());
+        assertOfficerOwnsAccount(legalCase.getAccountId());
         // (5)(6) A recovery order can only exist once the court has decreed the case.
         if (legalCase.getStatus() != CaseStatus.DECREED) {
             throw new BusinessRuleException(
@@ -273,6 +280,7 @@ public class LegalServiceImpl implements LegalService {
     @Transactional
     public RecoveryOrderDto updateOrderStatus(String id, com.debtpulse.common.enums.OrderStatus status) {
         RecoveryOrder order = findOrder(id);
+        assertOfficerOwnsAccount(order.getLegalCase().getAccountId());
         // Enforce the order lifecycle — reject illegal jumps (e.g. ISSUED → EXECUTED).
         LegalStatusPolicy.assertOrderTransition(order.getStatus(), status);
         order.setStatus(status);
@@ -328,6 +336,22 @@ public class LegalServiceImpl implements LegalService {
     }
 
     // -------------------------------------------------------------- helpers
+
+    /**
+     * A legal officer may only work cases for accounts allocated to them; admins and portfolio
+     * managers are exempt. Fail-closed: if the account can't be read, deny.
+     */
+    private void assertOfficerOwnsAccount(String accountId) {
+        if (!Role.LEGAL_OFFICER.name().equals(AuthContext.currentRole())) {
+            return;
+        }
+        AccountDto account = accountClient.getAccount(accountId);
+        String me = AuthContext.currentUserId();
+        if (account == null || me == null || !me.equals(account.assignedAgentId())) {
+            throw new BusinessRuleException(
+                    "Account " + accountId + " is not allocated to you.", "ACCOUNT_NOT_ALLOCATED");
+        }
+    }
 
     private LegalCase findCase(String id) {
         return caseRepo.findById(id)

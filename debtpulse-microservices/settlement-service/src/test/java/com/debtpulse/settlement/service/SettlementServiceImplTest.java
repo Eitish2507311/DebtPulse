@@ -9,6 +9,7 @@ import com.debtpulse.settlement.dto.request.ApprovalDecisionRequest;
 import com.debtpulse.settlement.dto.request.SettlementRequest;
 import com.debtpulse.settlement.entity.SettlementProposal;
 import com.debtpulse.settlement.feign.AccountClient;
+import com.debtpulse.settlement.feign.dto.AccountDto;
 import com.debtpulse.settlement.feign.AuthClient;
 import com.debtpulse.settlement.feign.NotificationClient;
 import com.debtpulse.settlement.mapper.SettlementMapper;
@@ -69,6 +70,9 @@ class SettlementServiceImplTest {
     void create_derivesHaircutAndHighestLevel() {
         authenticateAs("USR-OFF", "SETTLEMENT_OFFICER");
         when(accountClient.accountExists("ACC-1")).thenReturn(true);
+        // account is allocated to the acting officer, so the ownership guard passes
+        when(accountClient.getAccount("ACC-1")).thenReturn(new AccountDto(
+                "ACC-1", null, null, null, null, null, null, null, null, null, null, "USR-OFF"));
         when(repo.save(any(SettlementProposal.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // (100000 - 60000) / 100000 * 100 = 40.00% -> chain [L1, L2, L3], highest L3
