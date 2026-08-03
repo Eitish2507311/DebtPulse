@@ -110,7 +110,7 @@ export default function AccountsPage() {
 
       <FormModal show={showCreate} title="New Delinquent Account" submitLabel="Create account"
         initial={{ loanRef: '', borrowerName: '', phone: '', address: '', branchId: '', principalAmount: '', totalOverdue: '', dpd: '',
-          secured: 'false', assetType: '', assetDescription: '', estimatedValue: '' }}
+          secured: 'false', assetType: '', assetDescription: '', estimatedValue: '', lastVerifiedDate: '' }}
         onClose={() => setShowCreate(false)} onSaved={reload}
         onSubmit={(v) => {
           const isSecured = v.secured === 'true';
@@ -121,6 +121,7 @@ export default function AccountsPage() {
             assetType: isSecured ? (v.assetType || null) : null,
             assetDescription: isSecured ? (v.assetDescription || null) : null,
             estimatedValue: isSecured && v.estimatedValue !== '' ? Number(v.estimatedValue) : null,
+            lastVerifiedDate: isSecured ? (v.lastVerifiedDate || null) : null,
           });
         }}>
         {(v, set, errs) => (
@@ -141,6 +142,7 @@ export default function AccountsPage() {
             {v.secured === 'true' && <>
               <Col md={4}><Field label="Asset Type" name="assetType" type="select" options={ENUMS.AssetType} value={v.assetType} onChange={set} error={errs.assetType} required /></Col>
               <Col md={4}><Field label="Estimated Value" name="estimatedValue" type="number" min="0" value={v.estimatedValue} onChange={set} error={errs.estimatedValue} required /></Col>
+              <Col md={4}><Field label="Last Verified Date" name="lastVerifiedDate" type="date" value={v.lastVerifiedDate} onChange={set} error={errs.lastVerifiedDate} help="Origination appraisal date" /></Col>
               <Col md={12}><Field label="Asset Description" name="assetDescription" value={v.assetDescription} onChange={set} error={errs.assetDescription} /></Col>
             </>}
           </Row>

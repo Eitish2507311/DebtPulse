@@ -44,7 +44,8 @@ public class CollateralAssetServiceImpl implements CollateralAssetService {
         CollateralAsset entity = mapper.toEntity(req);
         // Registered collateral is considered verified at origination; a field visit re-verifies later.
         entity.setVerificationStatus(VerificationStatus.VERIFIED);
-        entity.setLastVerifiedDate(java.time.LocalDateTime.now());
+        entity.setLastVerifiedDate(req.lastVerifiedDate() != null
+                ? req.lastVerifiedDate().atStartOfDay() : java.time.LocalDateTime.now());
         CollateralAsset saved = repo.save(entity);
         log.info("Created collateral asset id={} for account={} type={}",
                 saved.getAssetId(), saved.getAccountId(), saved.getAssetType());
@@ -77,6 +78,7 @@ public class CollateralAssetServiceImpl implements CollateralAssetService {
         if (req.assetType() != null) asset.setAssetType(req.assetType());
         if (req.description() != null) asset.setDescription(req.description());
         if (req.estimatedValue() != null) asset.setEstimatedValue(req.estimatedValue());
+        if (req.lastVerifiedDate() != null) asset.setLastVerifiedDate(req.lastVerifiedDate().atStartOfDay());
         return repo.save(asset);
     }
 

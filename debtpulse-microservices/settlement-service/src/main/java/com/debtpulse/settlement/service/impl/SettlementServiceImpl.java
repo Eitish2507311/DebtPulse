@@ -306,15 +306,27 @@ public class SettlementServiceImpl implements SettlementService {
         }
     }
 
-    /** The settlement offer must be positive and cannot exceed the outstanding it settles. */
+    /**
+     * The offer must be a genuine discount (strictly less than the outstanding), and the outstanding
+     * must match what the account actually owes — so a proposal can't be raised on a made-up figure.
+     */
     private void validateAmounts(SettlementRequest req) {
         if (req.settlementAmount() == null || req.totalOutstanding() == null) {
             return; // bean validation already rejects nulls
         }
-        if (req.settlementAmount().compareTo(req.totalOutstanding()) > 0) {
+        if (req.settlementAmount().compareTo(req.totalOutstanding()) >= 0) {
             throw new BusinessRuleException(
-                    "Settlement amount (" + req.settlementAmount() + ") cannot exceed the total outstanding ("
+                    "Settlement amount (" + req.settlementAmount() + ") must be less than the total outstanding ("
                             + req.totalOutstanding() + ").", "INVALID_SETTLEMENT_AMOUNT");
+        }
+        // The stated outstanding must equal the account's actual outstanding (best-effort: skipped if
+        // account-service can't supply it, since existence was already confirmed).
+        AccountDto account = accountClient.getAccount(req.accountId());
+        if (account != null && account.totalOverdue() != null
+                && req.totalOutstanding().compareTo(account.totalOverdue()) != 0) {
+            throw new BusinessRuleException(
+                    "Total outstanding (" + req.totalOutstanding() + ") must match the account's outstanding ("
+                            + account.totalOverdue() + ").", "OUTSTANDING_MISMATCH");
         }
     }
 

@@ -1,5 +1,7 @@
 package com.debtpulse.settlement.dto.request;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -14,7 +16,8 @@ public record RestructuringRequest(
         String accountId,
 
         @NotNull(message = "Revised tenure is required")
-        @Positive(message = "Revised tenure must be positive")
+        @Min(value = 1, message = "Revised tenure must be at least 1 month")
+        @Max(value = 360, message = "Revised tenure cannot exceed 360 months (30 years)")
         Integer revisedTenure,
 
         @NotNull(message = "Revised EMI is required")

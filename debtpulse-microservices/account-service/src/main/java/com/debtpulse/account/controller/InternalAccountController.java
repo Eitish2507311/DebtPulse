@@ -1,6 +1,7 @@
 package com.debtpulse.account.controller;
 
 import com.debtpulse.account.dto.response.AccountDto;
+import com.debtpulse.account.entity.CollateralAsset;
 import com.debtpulse.account.mapper.AccountMapper;
 import com.debtpulse.account.service.AccountService;
 import com.debtpulse.account.service.CollateralAssetService;
@@ -52,6 +53,11 @@ public class InternalAccountController {
     public ResponseEntity<Void> updateStatus(@PathVariable String id, @RequestParam AccountStatus status) {
         accountService.updateStatus(id, status);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/collateral-assets/{assetId}")
+    public ResponseEntity<CollateralAsset> getCollateral(@PathVariable String assetId) {
+        return ResponseEntity.ok(assetService.get(assetId));
     }
 
     @PostMapping("/collateral-assets/{assetId}/mark-verified")

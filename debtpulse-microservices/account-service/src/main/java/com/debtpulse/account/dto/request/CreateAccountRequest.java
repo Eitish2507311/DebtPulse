@@ -5,6 +5,7 @@ import com.debtpulse.common.validation.Phone;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * Payload to onboard a delinquent account. Bucket is derived server-side from {@code dpd}.
@@ -49,5 +50,8 @@ public record CreateAccountRequest(
 
         /** Collateral estimated value — required when {@code secured} is true. */
         @PositiveOrZero(message = "Estimated value cannot be negative")
-        BigDecimal estimatedValue
+        BigDecimal estimatedValue,
+
+        /** Origination appraisal date recorded as the collateral's last-verified date (defaults to now). */
+        LocalDate lastVerifiedDate
 ) {}

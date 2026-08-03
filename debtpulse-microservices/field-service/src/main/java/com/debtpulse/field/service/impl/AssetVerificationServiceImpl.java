@@ -1,16 +1,21 @@
 package com.debtpulse.field.service.impl;
 
+import com.debtpulse.field.exception.BusinessRuleException;
 import com.debtpulse.field.exception.ResourceNotFoundException;
 import com.debtpulse.common.security.AuthContext;
 import com.debtpulse.common.audit.AuditContext;
+import com.debtpulse.common.enums.VisitStatus;
 import com.debtpulse.field.dto.request.AssetVerificationRequest;
 import com.debtpulse.field.dto.response.AssetVerificationDto;
 import com.debtpulse.field.entity.AssetVerificationReport;
+import com.debtpulse.field.entity.FieldVisit;
 import com.debtpulse.field.feign.AccountClient;
 import com.debtpulse.field.feign.AuthClient;
 import com.debtpulse.field.feign.dto.AuditLogRequest;
+import com.debtpulse.field.feign.dto.CollateralDto;
 import com.debtpulse.field.mapper.AssetVerificationMapper;
 import com.debtpulse.field.repository.AssetVerificationReportRepository;
+import com.debtpulse.field.repository.FieldVisitRepository;
 import com.debtpulse.field.service.AssetVerificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,21 +33,48 @@ public class AssetVerificationServiceImpl implements AssetVerificationService {
     private static final String SOURCE = "field-service";
 
     private final AssetVerificationReportRepository repo;
+    private final FieldVisitRepository visitRepo;
     private final AssetVerificationMapper mapper;
     private final AccountClient accountClient;
     private final AuthClient authClient;
 
     public AssetVerificationServiceImpl(AssetVerificationReportRepository repo,
+                                        FieldVisitRepository visitRepo,
                                         AssetVerificationMapper mapper,
                                         AccountClient accountClient, AuthClient authClient) {
         this.repo = repo;
+        this.visitRepo = visitRepo;
         this.mapper = mapper;
         this.accountClient = accountClient;
         this.authClient = authClient;
     }
 
+    /**
+     * A report may only be filed against a COMPLETED visit, and its realisable value can't exceed the
+     * asset's appraised estimate (the estimate is read from account-service; skipped if unavailable).
+     */
+    private void validateReport(AssetVerificationRequest req) {
+        FieldVisit visit = visitRepo.findById(req.visitId())
+                .orElseThrow(() -> new ResourceNotFoundException("Field visit not found: " + req.visitId()));
+        if (visit.getStatus() != VisitStatus.COMPLETED) {
+            throw new BusinessRuleException(
+                    "Asset verification can only be recorded for a COMPLETED visit (visit "
+                            + req.visitId() + " is " + visit.getStatus() + ").", "VISIT_NOT_COMPLETED");
+        }
+        if (req.realisableValue() != null) {
+            CollateralDto asset = accountClient.getCollateral(req.assetId());
+            if (asset != null && asset.estimatedValue() != null
+                    && req.realisableValue().compareTo(asset.estimatedValue()) > 0) {
+                throw new BusinessRuleException(
+                        "Realisable value (" + req.realisableValue() + ") cannot exceed the asset's "
+                                + "estimated value (" + asset.estimatedValue() + ").", "REALISABLE_EXCEEDS_ESTIMATE");
+            }
+        }
+    }
+
     @Override
     public AssetVerificationDto create(AssetVerificationRequest req) {
+        validateReport(req);
         AssetVerificationReport report = mapper.toEntity(req);
         if (report.getVerifiedById() == null || report.getVerifiedById().isBlank()) {
             report.setVerifiedById(AuthContext.currentUserId());
@@ -78,6 +110,7 @@ public class AssetVerificationServiceImpl implements AssetVerificationService {
 
     @Override
     public AssetVerificationDto update(String id, AssetVerificationRequest req) {
+        validateReport(req);
         AssetVerificationReport report = find(id);
         report.setVisitId(req.visitId());
         report.setAssetId(req.assetId());

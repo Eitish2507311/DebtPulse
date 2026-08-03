@@ -155,7 +155,7 @@ public class AccountController {
         BigDecimal estValue = c.length >= 12 && !c[11].isBlank() ? parseAmount(c[11], "estimatedValue") : null;
 
         return new CreateAccountRequest(loanRef, borrowerName, c[2].trim(), c[3].trim(), branchId,
-                principal, overdue, dpd, secured, assetType, assetDesc, estValue);
+                principal, overdue, dpd, secured, assetType, assetDesc, estValue, null);
     }
 
     private static BigDecimal parseAmount(String raw, String field) {

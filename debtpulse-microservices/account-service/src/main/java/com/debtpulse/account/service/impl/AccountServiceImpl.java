@@ -104,7 +104,8 @@ public class AccountServiceImpl implements AccountService {
                     .description(req.assetDescription())
                     .estimatedValue(req.estimatedValue())
                     .verificationStatus(VerificationStatus.VERIFIED)
-                    .lastVerifiedDate(java.time.LocalDateTime.now())
+                    .lastVerifiedDate(req.lastVerifiedDate() != null
+                            ? req.lastVerifiedDate().atStartOfDay() : java.time.LocalDateTime.now())
                     .build();
             collateralRepo.save(asset);
             log.info("Collateral {} ({}) registered with account {}",
@@ -133,6 +134,10 @@ public class AccountServiceImpl implements AccountService {
         }
         if (req.daysInCurrentBucket() != null) account.setDaysInCurrentBucket(req.daysInCurrentBucket());
         if (req.status() != null) account.setStatus(req.status());
+        // Manual (admin) re-assignment: a blank value clears the assignment, leaving it for allocation.
+        if (req.assignedAgentId() != null) {
+            account.setAssignedAgentId(req.assignedAgentId().isBlank() ? null : req.assignedAgentId().trim());
+        }
         DelinquentAccount saved = repo.save(account);
         log.info("Updated account id={} bucket={} status={}", saved.getAccountId(), saved.getBucket(), saved.getStatus());
         return saved;

@@ -102,7 +102,7 @@ export default function AccountDetailPage() {
       <FormModal show={edit} title="Edit Account" submitLabel="Save changes"
         initial={{ borrowerName: acc.borrowerName, phone: acc.phone || '', address: acc.address || '', branchId: acc.branchId || '',
           principalAmount: acc.principalAmount, totalOverdue: acc.totalOverdue, dpd: acc.dpd,
-          daysInCurrentBucket: acc.daysInCurrentBucket, status: acc.status }}
+          daysInCurrentBucket: acc.daysInCurrentBucket, status: acc.status, assignedAgentId: acc.assignedAgentId || '' }}
         onClose={() => setEdit(false)} onSaved={reload}
         onSubmit={(v) => accountApi.update(id, {
           ...v, principalAmount: Number(v.principalAmount), totalOverdue: Number(v.totalOverdue), dpd: Number(v.dpd),
@@ -118,6 +118,7 @@ export default function AccountDetailPage() {
             <Col md={4}><Field label="DPD" name="dpd" type="number" value={v.dpd} onChange={set} error={errs.dpd} help="Bucket is re-derived" /></Col>
             <Col md={6}><Field label="Days in Current Bucket" name="daysInCurrentBucket" type="number" min="0" value={v.daysInCurrentBucket} onChange={set} error={errs.daysInCurrentBucket} /></Col>
             <Col md={6}><Field label="Status" name="status" type="select" options={ENUMS.AccountStatus} value={v.status} onChange={set} error={errs.status} /></Col>
+            {role === ROLES.ADMIN && <Col md={6}><Field label="Assigned Agent" name="assignedAgentId" value={v.assignedAgentId} onChange={set} error={errs.assignedAgentId} help="Admin re-assignment; blank unassigns" /></Col>}
           </Row>
         )}
       </FormModal>
@@ -128,7 +129,18 @@ export default function AccountDetailPage() {
 function CollateralTab({ accountId, canWrite }) {
   const { data, loading, reload } = useAsync(() => collateralApi.byAccount(accountId), [accountId]);
   const [show, setShow] = useState(false);
+  const [edit, setEdit] = useState(null);
   if (loading) return <Loading />;
+
+  const assetFields = (v, set, errs) => (<>
+    <Field label="Asset Type" name="assetType" type="select" options={ENUMS.AssetType} value={v.assetType} onChange={set} error={errs.assetType} required />
+    <Field label="Description" name="description" value={v.description} onChange={set} error={errs.description} />
+    <Row>
+      <Col md={6}><Field label="Estimated Value" name="estimatedValue" type="number" min="0" value={v.estimatedValue} onChange={set} error={errs.estimatedValue} required /></Col>
+      <Col md={6}><Field label="Last Verified Date" name="lastVerifiedDate" type="date" value={v.lastVerifiedDate} onChange={set} error={errs.lastVerifiedDate} help="Origination appraisal date" /></Col>
+    </Row>
+  </>);
+
   return (
     <Card><Card.Header className="d-flex justify-content-between align-items-center">
       Collateral Assets
@@ -137,27 +149,31 @@ function CollateralTab({ accountId, canWrite }) {
       <Card.Body className="p-0">
         {!data?.length ? <EmptyState icon="box-seam" title="No collateral registered" /> : (
           <Table hover className="mb-0"><thead><tr>
-            <th>Asset</th><th>Type</th><th>Description</th><th className="text-end">Est. Value</th><th>Verification</th><th>Last Verified</th>
+            <th>Asset</th><th>Type</th><th>Description</th><th className="text-end">Est. Value</th><th>Verification</th><th>Last Verified</th><th></th>
           </tr></thead><tbody>
             {data.map((a) => (
               <tr key={a.assetId}>
                 <td className="text-mono">{a.assetId}</td><td>{titleCase(a.assetType)}</td><td>{a.description || '—'}</td>
                 <td className="text-end">{inr(a.estimatedValue)}</td><td><StatusBadge value={a.verificationStatus} /></td>
                 <td>{date(a.lastVerifiedDate)}</td>
+                <td className="text-end">{canWrite && <Button size="sm" variant="light" title="Edit" onClick={() => setEdit(a)}><i className="bi bi-pencil" /></Button>}</td>
               </tr>
             ))}
           </tbody></Table>
         )}
       </Card.Body>
       <FormModal show={show} title="Register Collateral Asset" submitLabel="Add asset"
-        initial={{ accountId, assetType: '', description: '', estimatedValue: '' }}
+        initial={{ accountId, assetType: '', description: '', estimatedValue: '', lastVerifiedDate: '' }}
         onClose={() => setShow(false)} onSaved={reload}
-        onSubmit={(v) => collateralApi.create({ ...v, estimatedValue: Number(v.estimatedValue) })}>
-        {(v, set, errs) => (<>
-          <Field label="Asset Type" name="assetType" type="select" options={ENUMS.AssetType} value={v.assetType} onChange={set} error={errs.assetType} required />
-          <Field label="Description" name="description" value={v.description} onChange={set} error={errs.description} />
-          <Field label="Estimated Value" name="estimatedValue" type="number" min="0" value={v.estimatedValue} onChange={set} error={errs.estimatedValue} required />
-        </>)}
+        onSubmit={(v) => collateralApi.create({ ...v, estimatedValue: Number(v.estimatedValue), lastVerifiedDate: v.lastVerifiedDate || null })}>
+        {assetFields}
+      </FormModal>
+      <FormModal show={!!edit} title={`Edit Collateral ${edit?.assetId || ''}`} submitLabel="Save changes"
+        initial={edit ? { accountId, assetType: edit.assetType, description: edit.description || '',
+          estimatedValue: edit.estimatedValue, lastVerifiedDate: (edit.lastVerifiedDate || '').slice(0, 10) } : {}}
+        onClose={() => setEdit(null)} onSaved={reload}
+        onSubmit={(v) => collateralApi.update(edit.assetId, { ...v, estimatedValue: Number(v.estimatedValue), lastVerifiedDate: v.lastVerifiedDate || null })}>
+        {assetFields}
       </FormModal>
     </Card>
   );
