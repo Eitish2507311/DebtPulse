@@ -155,13 +155,13 @@ export default function AnalyticsPage() {
 
       <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
         <div className="fw-semibold" style={{ color: 'var(--dp-navy)' }}>Generated Reports</div>
-        <div className="d-flex gap-2 flex-wrap">
-          <InputGroup size="sm" style={{ maxWidth: 260 }}>
+        <div className="d-flex gap-2 align-items-center">
+          <InputGroup size="sm" style={{ width: 240 }}>
             <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
             <Form.Control placeholder="Search by Report ID…" value={rq} onChange={(e) => setRq(e.target.value)} />
             {rq && <Button variant="outline-secondary" onClick={() => setRq('')}><i className="bi bi-x" /></Button>}
           </InputGroup>
-          <Form.Control size="sm" style={{ maxWidth: 180 }} placeholder="Filter by scope…"
+          <Form.Control size="sm" style={{ width: 170 }} placeholder="Filter by scope…"
             value={scope} onChange={(e) => setScope(e.target.value)} />
         </div>
       </div>

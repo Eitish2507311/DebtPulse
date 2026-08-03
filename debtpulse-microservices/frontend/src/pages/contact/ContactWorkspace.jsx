@@ -128,7 +128,7 @@ function PtpTab({ canWrite }) {
     { key: 'status', header: 'Status', render: (r) => <StatusBadge value={r.status} /> },
     { key: '_a', header: '', render: (r) => canWrite && (
       <Dropdown align="end"><Dropdown.Toggle size="sm" variant="light">Actions</Dropdown.Toggle>
-        <Dropdown.Menu>
+        <Dropdown.Menu renderOnMount popperConfig={{ strategy: 'fixed' }}>
           <Dropdown.Item onClick={() => setEdit(r)}>Edit</Dropdown.Item>
           <Dropdown.Item onClick={() => setPay(r)}>Record payment</Dropdown.Item>
           <Dropdown.Item onClick={() => setResched(r)}>Reschedule</Dropdown.Item>

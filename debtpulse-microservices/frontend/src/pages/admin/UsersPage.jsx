@@ -45,7 +45,7 @@ export default function UsersPage() {
     { key: 'createdAt', header: 'Created', render: (r) => dateTime(r.createdAt) },
     { key: '_a', header: '', render: (r) => (
       <Dropdown align="end"><Dropdown.Toggle size="sm" variant="light">Manage</Dropdown.Toggle>
-        <Dropdown.Menu>
+        <Dropdown.Menu renderOnMount popperConfig={{ strategy: 'fixed' }}>
           <Dropdown.Item onClick={() => setEdit(r)}>Edit</Dropdown.Item>
           <Dropdown.Divider />
           {ENUMS.UserStatus.map((s) => <Dropdown.Item key={s} onClick={() => setStatus(r, s)}>Set {s}</Dropdown.Item>)}

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Tabs, Tab, Button, Row, Col, Dropdown } from 'react-bootstrap';
+import { Tabs, Tab, Button, Row, Col, Dropdown, Modal, Table } from 'react-bootstrap';
 import { settlementApi, restructuringApi } from '../../api/services.js';
 import { usePaged } from '../../hooks/usePaged.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -35,6 +35,7 @@ function SettlementsTab({ role }) {
   const [show, setShow] = useState(false);
   const [decide, setDecide] = useState(null);
   const [paid, setPaid] = useState(null);
+  const [view, setView] = useState(null);
 
   const submit = async (r) => {
     try { await settlementApi.submit(r.proposalId); toast.success('Submitted for approval'); reload(); }
@@ -58,11 +59,11 @@ function SettlementsTab({ role }) {
     { key: 'status', header: 'Status', render: (r) => <StatusBadge value={r.status} /> },
     { key: '_a', header: '', render: (r) => (
       <Dropdown align="end"><Dropdown.Toggle size="sm" variant="light">Actions</Dropdown.Toggle>
-        <Dropdown.Menu>
+        <Dropdown.Menu renderOnMount popperConfig={{ strategy: 'fixed' }}>
+          <Dropdown.Item onClick={() => setView(r)}>View</Dropdown.Item>
           {isOfficer && r.status === 'DRAFT' && <Dropdown.Item onClick={() => submit(r)}>Submit for approval</Dropdown.Item>}
           {isApprover && r.status === 'PENDING_APPROVAL' && <Dropdown.Item onClick={() => setDecide(r)}>Record decision</Dropdown.Item>}
           {(isOfficer || isApprover) && r.status === 'APPROVED' && <Dropdown.Item onClick={() => setPaid(r)}>Mark paid</Dropdown.Item>}
-          <Dropdown.Item disabled>View</Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown>
     ) },
@@ -110,6 +111,28 @@ function SettlementsTab({ role }) {
     <ConfirmDialog show={!!paid} title="Confirm settlement payment" confirmLabel="Mark paid"
       body={<>Confirm that settlement <strong>{paid?.proposalId}</strong> has been paid in full?</>}
       onCancel={() => setPaid(null)} onConfirm={doPaid} />
+
+    <Modal show={!!view} onHide={() => setView(null)} centered>
+      <Modal.Header closeButton><Modal.Title className="h6 mb-0">Settlement {view?.proposalId}</Modal.Title></Modal.Header>
+      <Modal.Body>
+        {view && (
+          <Table borderless size="sm" className="mb-0">
+            <tbody>
+              <tr><td className="text-muted">Account</td><td className="text-end text-mono">{view.accountId}</td></tr>
+              <tr><td className="text-muted">Total Outstanding</td><td className="text-end fw-semibold">{inr(view.totalOutstanding)}</td></tr>
+              <tr><td className="text-muted">Settlement Offer</td><td className="text-end fw-semibold">{inr(view.settlementAmount)}</td></tr>
+              <tr><td className="text-muted">Haircut</td><td className="text-end">{pct(view.haircutPercent)}</td></tr>
+              <tr><td className="text-muted">Approval Chain</td><td className="text-end">{(view.requiredApprovalChain || []).join(' → ') || view.approvalLevel}</td></tr>
+              <tr><td className="text-muted">Current Step</td><td className="text-end">{view.currentStep || '—'}</td></tr>
+              <tr><td className="text-muted">Payment Deadline</td><td className="text-end">{date(view.paymentDeadline)}</td></tr>
+              <tr><td className="text-muted">Status</td><td className="text-end"><StatusBadge value={view.status} /></td></tr>
+              <tr><td className="text-muted">Remarks</td><td className="text-end">{view.notes || '—'}</td></tr>
+            </tbody>
+          </Table>
+        )}
+      </Modal.Body>
+      <Modal.Footer><Button variant="light" onClick={() => setView(null)}>Close</Button></Modal.Footer>
+    </Modal>
   </>);
 }
 

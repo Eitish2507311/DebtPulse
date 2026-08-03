@@ -67,22 +67,22 @@ function CasesTab({ canWrite }) {
   ];
   return (<>
     <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
-      <div className="d-flex gap-2 flex-wrap">
-        <InputGroup size="sm" style={{ maxWidth: 300 }}>
-          <InputGroup.Text><i className="bi bi-box-arrow-up-right" /></InputGroup.Text>
-          <Form.Control placeholder="Open case by Case ID…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') goToCase(search); }} />
-          <Button variant="outline-primary" onClick={() => goToCase(search)}>Open</Button>
-        </InputGroup>
-        <InputGroup size="sm" style={{ maxWidth: 300 }}>
+      <InputGroup size="sm" style={{ maxWidth: 300 }}>
+        <InputGroup.Text><i className="bi bi-box-arrow-up-right" /></InputGroup.Text>
+        <Form.Control placeholder="Open case by Case ID…" value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') goToCase(search); }} />
+        <Button variant="outline-primary" onClick={() => goToCase(search)}>Open</Button>
+      </InputGroup>
+      <div className="d-flex gap-2 align-items-center">
+        <InputGroup size="sm" style={{ width: 260 }}>
           <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
           <Form.Control placeholder="Filter by Account ID…" value={acct}
             onChange={(e) => setAcct(e.target.value)} />
           {acct && <Button variant="outline-secondary" onClick={() => setAcct('')}><i className="bi bi-x" /></Button>}
         </InputGroup>
+        {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />File case</Button>}
       </div>
-      {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />File case</Button>}
     </div>
     <ErrorNote error={error} />
     <DataTable columns={columns} page={page} loading={loading} onPageChange={setPage}

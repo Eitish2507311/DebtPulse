@@ -46,7 +46,7 @@ function VisitsTab({ canWrite }) {
     { key: 'status', header: 'Status', render: (r) => <StatusBadge value={r.status} /> },
     { key: '_a', header: '', render: (r) => canWrite && r.status === 'SCHEDULED' && (
       <Dropdown align="end"><Dropdown.Toggle size="sm" variant="light">Actions</Dropdown.Toggle>
-        <Dropdown.Menu>
+        <Dropdown.Menu renderOnMount popperConfig={{ strategy: 'fixed' }}>
           <Dropdown.Item onClick={() => setComplete(r)}>Complete visit</Dropdown.Item>
           <Dropdown.Item className="text-danger" onClick={() => markMissed(r)}>Mark missed</Dropdown.Item>
         </Dropdown.Menu>
