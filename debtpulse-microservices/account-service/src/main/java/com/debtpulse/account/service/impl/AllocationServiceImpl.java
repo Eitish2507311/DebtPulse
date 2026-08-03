@@ -39,7 +39,9 @@ public class AllocationServiceImpl implements AllocationService {
     private static final String SOURCE_SERVICE = "account-service";
     private static final String ENTITY_TYPE = "DelinquentAccount";
     private static final String ESCALATION_CATEGORY = "ESCALATION";
-    private static final String ALLOCATION_CATEGORY = "ALLOCATION";
+    // Allocation/assignment alerts use the PORTFOLIO category — "ALLOCATION" is NOT a NotifCategory,
+    // so sending it would fail to deserialize at notification-service and the alert would be dropped.
+    private static final String ALLOCATION_CATEGORY = "PORTFOLIO";
 
     private final AllocationRuleRepository ruleRepo;
     private final DelinquentAccountRepository accountRepo;
