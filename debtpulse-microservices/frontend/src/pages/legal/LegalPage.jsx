@@ -74,7 +74,7 @@ function CasesTab({ canWrite }) {
           onKeyDown={(e) => { if (e.key === 'Enter') goToCase(search); }} />
         <Button variant="outline-primary" onClick={() => goToCase(search)}>Open</Button>
       </InputGroup>
-      <div className="d-flex gap-2 align-items-center">
+      <div className="d-flex gap-2 align-items-center flex-wrap filter-bar">
         <InputGroup size="sm" style={{ width: 260 }}>
           <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
           <Form.Control placeholder="Filter by Account ID…" value={acct}

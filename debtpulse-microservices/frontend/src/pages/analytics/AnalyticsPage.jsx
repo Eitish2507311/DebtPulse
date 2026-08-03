@@ -155,7 +155,7 @@ export default function AnalyticsPage() {
 
       <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
         <div className="fw-semibold" style={{ color: 'var(--dp-navy)' }}>Generated Reports</div>
-        <div className="d-flex gap-2 align-items-center">
+        <div className="d-flex gap-2 align-items-center flex-wrap filter-bar">
           <InputGroup size="sm" style={{ width: 240 }}>
             <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
             <Form.Control placeholder="Search by Report ID…" value={rq} onChange={(e) => setRq(e.target.value)} />

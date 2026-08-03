@@ -74,7 +74,7 @@ function ContactsTab({ canWrite }) {
   ];
   return (<>
     <div className="d-flex justify-content-between align-items-end gap-2 mb-3 flex-wrap">
-      <div className="d-flex gap-2 flex-wrap align-items-center">
+      <div className="d-flex gap-2 flex-wrap align-items-center filter-bar">
         <SmartSearch value={q} onChange={setQ} placeholder="Search by Contact ID or Account ID…" />
         <InputGroup style={{ maxWidth: 240 }}>
           <InputGroup.Text><i className="bi bi-person-badge" /></InputGroup.Text>

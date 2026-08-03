@@ -226,6 +226,8 @@ a:hover { color: var(--dp-blue-800); }
   padding-top: .7rem; padding-bottom: .7rem;
 }
 .table tbody td { vertical-align: middle; font-size: .87rem; border-color: var(--dp-border); }
+/* momentum scrolling for the horizontal table overflow on touch devices */
+.table-responsive { -webkit-overflow-scrolling: touch; }
 .table-hover tbody tr { transition: background .12s ease; }
 .table-hover tbody tr:hover { background: var(--dp-blue-50); }
 .table code, td .mono, .text-mono { font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace; font-size: .8rem; color: var(--dp-blue-700); }
@@ -289,6 +291,23 @@ a:hover { color: var(--dp-blue-800); }
   .pref-btn.sm, .pref-btn.lg { display: none; }
   /* PageHeader action buttons wrap under the title instead of squashing it */
   .btn { --bs-btn-padding-x: .7rem; }
+  /* denser tables so more columns fit before the horizontal scroll kicks in */
+  .table thead th, .table tbody td { padding-left: .55rem; padding-right: .55rem; }
+  .table tbody td { font-size: .82rem; }
+  .card-header { padding: .7rem .85rem; }
+  /* give modals room to breathe on small screens */
+  .modal-dialog:not(.modal-fullscreen) { margin: .5rem; }
+  /* filter/search rows: let controls take the full row width instead of overflowing */
+  .filter-bar { width: 100%; }
+  .filter-bar > * { flex: 1 1 100%; max-width: 100% !important; min-width: 0; }
+}
+/* ultra-narrow (folded / zoomed) — keep everything inside the viewport, never overflow */
+@media (max-width: 400px) {
+  .page-body { padding: .65rem .55rem 1.5rem; }
+  .page-title { font-size: 1.02rem; }
+  .stat-card .value { font-size: 1.18rem; }
+  .stat-card .icon { width: 40px; height: 40px; font-size: 1.1rem; }
+  .topbar { gap: .35rem; padding: 0 .6rem; }
 }
 
 /* ==========================================================================
