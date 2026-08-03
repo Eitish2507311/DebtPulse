@@ -89,6 +89,34 @@ class LegalServiceImplTest {
         verify(caseRepo, never()).save(any());
     }
 
+    @Test
+    void initiateCase_duplicateCaseNumber_throwsAndDoesNotSave() {
+        when(accountClient.accountExists("ACC-001")).thenReturn(true);
+        when(caseRepo.existsByCaseNumber("CS/2026/123")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.initiateCase(caseRequest()))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("already exists");
+
+        verify(caseRepo, never()).save(any());
+    }
+
+    @Test
+    void updateOrderStatus_executed_settlesTheCase() {
+        LegalCase decreed = caseWith(CaseStatus.DECREED);
+        RecoveryOrder order = RecoveryOrder.builder()
+                .orderId("ORD-1").legalCase(decreed)
+                .status(com.debtpulse.common.enums.OrderStatus.IN_EXECUTION).build();
+        when(orderRepo.findById("ORD-1")).thenReturn(Optional.of(order));
+        when(orderRepo.save(any(RecoveryOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.updateOrderStatus("ORD-1", com.debtpulse.common.enums.OrderStatus.EXECUTED);
+
+        assertThat(order.getStatus()).isEqualTo(com.debtpulse.common.enums.OrderStatus.EXECUTED);
+        assertThat(decreed.getStatus()).isEqualTo(CaseStatus.SETTLED);
+        verify(caseRepo).save(decreed);
+    }
+
     private LegalCase caseWith(CaseStatus status) {
         return LegalCase.builder()
                 .caseId("CASE-1").accountId("ACC-001").caseNumber("CS/2026/123")

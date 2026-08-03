@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Row, Col, Card } from 'react-bootstrap';
+import { Row, Col, Card, Button } from 'react-bootstrap';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ROLES, ROLE_LABELS, ACCESS, hasAny } from '../auth/roles.js';
@@ -29,16 +29,25 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    const jobs = [notificationApi.list({ page: 0, size: 5 }).then((r) => alive && setNotes(r.data.content || [])).catch(() => {})];
+  const load = useCallback(() => {
+    setLoading(true);
+    const jobs = [notificationApi.list({ page: 0, size: 5 }).then((r) => setNotes(r.data.content || [])).catch(() => {})];
     if (showKpis) {
-      jobs.push(analyticsApi.dashboard().then((r) => alive && setDash(r.data)).catch(() => {}));
-      jobs.push(analyticsApi.bucketDistribution().then((r) => alive && setBuckets(r.data)).catch(() => {}));
+      jobs.push(analyticsApi.dashboard().then((r) => setDash(r.data)).catch(() => {}));
+      jobs.push(analyticsApi.bucketDistribution().then((r) => setBuckets(r.data)).catch(() => {}));
     }
-    Promise.all(jobs).finally(() => alive && setLoading(false));
-    return () => { alive = false; };
+    return Promise.all(jobs).finally(() => setLoading(false));
   }, [showKpis]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // The dashboard aggregate is NESTED — read each KPI from its section.
+  const portfolio = dash?.portfolio || {};
+  const recovery = dash?.recoveryRate || {};
+  const settlements = dash?.settlements || {};
+  const legal = dash?.legal || {};
+  const field = dash?.fieldVisits || {};
+  const ptpBreachPct = dash?.ptp?.ptpBreachRate != null ? Number(dash.ptp.ptpBreachRate) * 100 : null;
 
   const bucketData = buckets?.byBucket
     ? Object.entries(buckets.byBucket).map(([name, value]) => ({ name, value: Number(value) })) : [];
@@ -49,21 +58,23 @@ export default function DashboardPage() {
         title={`Welcome, ${user?.name?.split(' ')[0] || 'there'}`}
         subtitle={`${ROLE_LABELS[role] || role} · Branch ${user?.branchId || '—'}`}
         icon="speedometer2"
+        actions={<Button variant="outline-secondary" size="sm" onClick={load} disabled={loading}>
+          <i className="bi bi-arrow-clockwise me-1" />Refresh</Button>}
       />
 
       {showKpis && (loading ? <Loading /> : (
         <>
           <Row className="g-3 mb-3">
-            <Col md={6} xl={3}><StatCard label="Accounts Managed" value={num(dash?.accountsManaged ?? dash?.totalAccounts)} icon="folder2-open" tone="navy" /></Col>
-            <Col md={6} xl={3}><StatCard label="Total Overdue" value={inr(dash?.totalOverdue)} icon="cash-stack" tone="red" /></Col>
-            <Col md={6} xl={3}><StatCard label="Cash Collected" value={inr(dash?.cashCollected)} icon="wallet2" tone="green" /></Col>
-            <Col md={6} xl={3}><StatCard label="Recovery Rate" value={pct(dash?.recoveryRate)} icon="graph-up-arrow" tone="blue" /></Col>
+            <Col md={6} xl={3}><StatCard label="Accounts Managed" value={num(portfolio.totalAccounts)} icon="folder2-open" tone="navy" /></Col>
+            <Col md={6} xl={3}><StatCard label="Total Overdue" value={inr(portfolio.totalOverdue)} icon="cash-stack" tone="red" /></Col>
+            <Col md={6} xl={3}><StatCard label="Settled Accounts" value={num(portfolio.settledAccounts)} icon="check2-circle" tone="green" /></Col>
+            <Col md={6} xl={3}><StatCard label="Recovery Rate" value={pct(recovery.recoveryRatePercent)} icon="graph-up-arrow" tone="blue" /></Col>
           </Row>
           <Row className="g-3 mb-3">
-            <Col md={6} xl={3}><StatCard label="PTP Breach Rate" value={pct(dash?.ptpBreachRate)} icon="exclamation-triangle" tone="amber" /></Col>
-            <Col md={6} xl={3}><StatCard label="Settlements Approved" value={num(dash?.settlementsApproved)} icon="check2-circle" tone="green" /></Col>
-            <Col md={6} xl={3}><StatCard label="Legal Conversion" value={pct(dash?.legalConversionRate)} icon="bank" tone="navy" /></Col>
-            <Col md={6} xl={3}><StatCard label="Field Visit Success" value={pct(dash?.fieldVisitSuccessRate)} icon="geo-alt" tone="blue" /></Col>
+            <Col md={6} xl={3}><StatCard label="PTP Breach Rate" value={pct(ptpBreachPct)} icon="exclamation-triangle" tone="amber" /></Col>
+            <Col md={6} xl={3}><StatCard label="Settlements Approved" value={num(settlements.approvedSettlements)} icon="check2-circle" tone="green" /></Col>
+            <Col md={6} xl={3}><StatCard label="Legal Conversion" value={pct(legal.legalConversionRate)} icon="bank" tone="navy" /></Col>
+            <Col md={6} xl={3}><StatCard label="Field Visit Success" value={pct(field.fieldVisitSuccessRate)} icon="geo-alt" tone="blue" /></Col>
           </Row>
           <Row className="g-3 mb-3">
             <Col lg={7}>

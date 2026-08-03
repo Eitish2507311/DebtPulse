@@ -53,9 +53,10 @@ public class LegalController {
     public ResponseEntity<PageResponse<LegalCaseDto>> listCases(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) CaseStatus status) {
+            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) String accountId) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("filingDate").descending());
-        return ResponseEntity.ok(PageResponse.of(legalService.listCases(status, pageable)));
+        return ResponseEntity.ok(PageResponse.of(legalService.listCases(status, accountId, pageable)));
     }
 
     @GetMapping("/cases/{id}")

@@ -78,6 +78,11 @@ public class LegalServiceImpl implements LegalService {
         if (!accountClient.accountExists(req.accountId())) {
             throw new BusinessRuleException("Account not found: " + req.accountId(), "ACCOUNT_NOT_FOUND");
         }
+        // Case numbers must be unique across the register.
+        if (caseRepo.existsByCaseNumber(req.caseNumber())) {
+            throw new BusinessRuleException(
+                    "Case number already exists: " + req.caseNumber(), "DUPLICATE_CASE_NUMBER");
+        }
         String officerId = AuthContext.currentUserId();
         LegalCase legalCase = LegalCase.builder()
                 .accountId(req.accountId())
@@ -100,10 +105,19 @@ public class LegalServiceImpl implements LegalService {
     }
 
     @Override
-    public Page<LegalCaseDto> listCases(CaseStatus status, Pageable pageable) {
-        Page<LegalCase> cases = (status == null)
-                ? caseRepo.findAll(pageable)
-                : caseRepo.findByStatus(status, pageable);
+    public Page<LegalCaseDto> listCases(CaseStatus status, String accountId, Pageable pageable) {
+        boolean hasAccount = accountId != null && !accountId.isBlank();
+        String acc = hasAccount ? accountId.trim() : null;
+        Page<LegalCase> cases;
+        if (status != null && hasAccount) {
+            cases = caseRepo.findByStatusAndAccountId(status, acc, pageable);
+        } else if (status != null) {
+            cases = caseRepo.findByStatus(status, pageable);
+        } else if (hasAccount) {
+            cases = caseRepo.findByAccountId(acc, pageable);
+        } else {
+            cases = caseRepo.findAll(pageable);
+        }
         return cases.map(mapper::toDto);
     }
 
@@ -119,7 +133,14 @@ public class LegalServiceImpl implements LegalService {
         if (req.caseType() != null) legalCase.setCaseType(req.caseType());
         if (req.filingDate() != null) legalCase.setFilingDate(req.filingDate());
         if (req.courtName() != null) legalCase.setCourtName(req.courtName());
-        if (req.caseNumber() != null) legalCase.setCaseNumber(req.caseNumber());
+        if (req.caseNumber() != null) {
+            // Keep case numbers unique — a change may not collide with another case.
+            if (caseRepo.existsByCaseNumberAndCaseIdNot(req.caseNumber(), id)) {
+                throw new BusinessRuleException(
+                        "Case number already exists: " + req.caseNumber(), "DUPLICATE_CASE_NUMBER");
+            }
+            legalCase.setCaseNumber(req.caseNumber());
+        }
         if (req.status() != null) {
             // Enforce the case lifecycle — reject illegal jumps (e.g. FILED → SETTLED).
             LegalStatusPolicy.assertCaseTransition(legalCase.getStatus(), req.status());
@@ -258,7 +279,24 @@ public class LegalServiceImpl implements LegalService {
         RecoveryOrder saved = orderRepo.save(order);
         log.info("Recovery order id={} status -> {}", id, status);
         audit("ORDER_STATUS_CHANGE", "RecoveryOrder", id);
+
+        // A closed-out order (executed or vacated) settles the underlying case.
+        if (status == OrderStatus.EXECUTED || status == OrderStatus.VACATED) {
+            settleCaseFor(order.getLegalCase(), status);
+        }
         return mapper.toDto(saved);
+    }
+
+    /** Move a decreed case to SETTLED once its recovery order is executed or vacated (idempotent). */
+    private void settleCaseFor(LegalCase legalCase, OrderStatus orderStatus) {
+        if (legalCase == null || legalCase.getStatus() == CaseStatus.SETTLED) {
+            return;
+        }
+        LegalStatusPolicy.assertCaseTransition(legalCase.getStatus(), CaseStatus.SETTLED);
+        legalCase.setStatus(CaseStatus.SETTLED);
+        caseRepo.save(legalCase);
+        log.info("Case id={} settled after order {} ", legalCase.getCaseId(), orderStatus);
+        audit("CASE_SETTLED", "LegalCase", legalCase.getCaseId());
     }
 
     @Override

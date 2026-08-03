@@ -20,8 +20,8 @@ public interface LegalService {
     // ---- cases ----
     LegalCaseDto initiateCase(LegalCaseRequest request);
 
-    /** Legal cases, optionally filtered to a single lifecycle status ({@code null} = all). */
-    Page<LegalCaseDto> listCases(CaseStatus status, Pageable pageable);
+    /** Legal cases, optionally filtered by lifecycle status and/or account id ({@code null} = no filter). */
+    Page<LegalCaseDto> listCases(CaseStatus status, String accountId, Pageable pageable);
 
     LegalCaseDto getCase(String id);
 

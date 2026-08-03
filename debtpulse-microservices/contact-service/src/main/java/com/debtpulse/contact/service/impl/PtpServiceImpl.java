@@ -101,8 +101,10 @@ public class PtpServiceImpl implements PtpService {
         entity.setPtpDate(req.ptpDate());
         entity.setPtpAmount(req.ptpAmount());
         entity.setCommitmentDate(req.commitmentDate());
+        if (req.status() != null) entity.setStatus(req.status());
         PromiseToPay saved = repo.save(entity);
-        log.info("PTP updated id={} amount={} commitmentDate={}", id, saved.getPtpAmount(), saved.getCommitmentDate());
+        log.info("PTP updated id={} amount={} commitmentDate={} status={}",
+                id, saved.getPtpAmount(), saved.getCommitmentDate(), saved.getStatus());
         audit("UPDATE", id);
         return mapper.toDto(saved);
     }

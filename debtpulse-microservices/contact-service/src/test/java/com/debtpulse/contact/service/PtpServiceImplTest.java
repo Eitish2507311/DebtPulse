@@ -39,7 +39,7 @@ class PtpServiceImplTest {
 
     private PtpRequest request() {
         return new PtpRequest("ACC-1", "USR-002", LocalDate.now(),
-                new BigDecimal("1000.00"), LocalDate.now().plusDays(7));
+                new BigDecimal("1000.00"), LocalDate.now().plusDays(7), null);
     }
 
     @Test

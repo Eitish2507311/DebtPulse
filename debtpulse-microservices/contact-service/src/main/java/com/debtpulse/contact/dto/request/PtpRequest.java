@@ -1,5 +1,6 @@
 package com.debtpulse.contact.dto.request;
 
+import com.debtpulse.common.enums.PtpStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.NotBlank;
@@ -25,5 +26,8 @@ public record PtpRequest(
         BigDecimal ptpAmount,
 
         @NotNull(message = "Commitment date is required")
-        LocalDate commitmentDate
+        LocalDate commitmentDate,
+
+        /** Optional — only honoured on edit, lets an agent correct the PTP status. Ignored on create. */
+        PtpStatus status
 ) {}

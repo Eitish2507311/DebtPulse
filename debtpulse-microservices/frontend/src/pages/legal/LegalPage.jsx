@@ -42,8 +42,10 @@ export default function LegalPage() {
 
 function CasesTab({ canWrite }) {
   const navigate = useNavigate();
+  const [acct, setAcct] = useState('');
+  const filters = acct.trim() ? { accountId: acct.trim() } : {};
   const fetcher = useCallback((p) => legalApi.listCases(p), []);
-  const { page, loading, error, setPage, reload } = usePaged(fetcher);
+  const { page, loading, error, setPage, reload } = usePaged(fetcher, { filters });
   const [show, setShow] = useState(false);
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
@@ -65,13 +67,21 @@ function CasesTab({ canWrite }) {
   ];
   return (<>
     <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
-      <InputGroup size="sm" style={{ maxWidth: 340 }}>
-        <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
-        <Form.Control placeholder="Open case by ID…" value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') goToCase(search); }} />
-        <Button variant="outline-primary" onClick={() => goToCase(search)}>Open</Button>
-      </InputGroup>
+      <div className="d-flex gap-2 flex-wrap">
+        <InputGroup size="sm" style={{ maxWidth: 300 }}>
+          <InputGroup.Text><i className="bi bi-box-arrow-up-right" /></InputGroup.Text>
+          <Form.Control placeholder="Open case by Case ID…" value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') goToCase(search); }} />
+          <Button variant="outline-primary" onClick={() => goToCase(search)}>Open</Button>
+        </InputGroup>
+        <InputGroup size="sm" style={{ maxWidth: 300 }}>
+          <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
+          <Form.Control placeholder="Filter by Account ID…" value={acct}
+            onChange={(e) => setAcct(e.target.value)} />
+          {acct && <Button variant="outline-secondary" onClick={() => setAcct('')}><i className="bi bi-x" /></Button>}
+        </InputGroup>
+      </div>
       {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />File case</Button>}
     </div>
     <ErrorNote error={error} />
@@ -94,10 +104,10 @@ function CasesTab({ canWrite }) {
       initial={editing ? { caseType: editing.caseType, courtName: editing.courtName, caseNumber: editing.caseNumber,
         filingDate: editing.filingDate, status: editing.status } : {}}
       onClose={() => setEditing(null)} onSaved={reload}
-      onSubmit={(v) => legalApi.updateCase(editing.caseId, v)}>
+      onSubmit={(v) => legalApi.updateCase(editing.caseId, { ...v, accountId: editing.accountId })}>
       {(v, set, errs) => (<Row>
         <Col md={6}><Field label="Case Type" name="caseType" type="select" options={ENUMS.CaseType} value={v.caseType} onChange={set} error={errs.caseType} /></Col>
-        <Col md={6}><Field label="Status" name="status" type="select" options={ENUMS.CaseStatus} value={v.status} onChange={set} error={errs.status} help="Only lawful transitions are accepted" /></Col>
+        <Col md={6}><Field label="Status" name="status" type="select" options={ENUMS.CaseStatus} value={v.status} onChange={set} error={errs.status} help="Set to Hearing Scheduled to move it into the Hearings tab (only lawful transitions accepted)" /></Col>
         <Col md={6}><Field label="Court Name" name="courtName" value={v.courtName} onChange={set} error={errs.courtName} /></Col>
         <Col md={6}><Field label="Case Number" name="caseNumber" value={v.caseNumber} onChange={set} error={errs.caseNumber} /></Col>
         <Col md={6}><Field label="Filing Date" name="filingDate" type="date" value={v.filingDate} onChange={set} error={errs.filingDate} /></Col>
@@ -141,11 +151,11 @@ function RecordOutcomeModal({ legalCase, onClose, onSaved }) {
 }
 
 function HearingsTab({ canWrite }) {
-  // Cases currently in HEARING_SCHEDULED — these are awaiting a recorded outcome.
+  // Cases currently in HEARING_SCHEDULED — these are awaiting a recorded outcome. A case gets here by
+  // setting its status to Hearing Scheduled from the Cases tab (no separate "schedule" action needed).
   const scheduled = useAsync(() => legalApi.listCases({ status: 'HEARING_SCHEDULED', size: 100 }), []);
   // Full hearing history across every case.
   const history = useAsync(() => legalApi.listAllHearings(), []);
-  const [schedule, setSchedule] = useState(false);
   const [outcomeFor, setOutcomeFor] = useState(null);
   const [q, setQ] = useState('');
 
@@ -164,7 +174,7 @@ function HearingsTab({ canWrite }) {
   return (<>
     <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
       <h6 className="mb-0">Cases awaiting outcome <span className="text-muted fw-normal">(Hearing Scheduled)</span></h6>
-      {canWrite && <Button size="sm" onClick={() => setSchedule(true)}><i className="bi bi-calendar-plus me-1" />Schedule hearing</Button>}
+      <span className="text-muted small">Set a case to <strong>Hearing Scheduled</strong> in the Cases tab to add it here.</span>
     </div>
     <ErrorNote error={scheduled.error} />
     <div className="card mb-4">
@@ -211,19 +221,6 @@ function HearingsTab({ canWrite }) {
       )}
     </div>
 
-    {/* Schedule a hearing (no outcome yet) — moves the case to Hearing Scheduled. */}
-    <FormModal show={schedule} title="Schedule Court Hearing" submitLabel="Schedule hearing"
-      initial={{ caseId: '', hearingDate: today(), notes: '' }}
-      onClose={() => setSchedule(false)} onSaved={reloadAll}
-      onSubmit={(v) => legalApi.addHearing({ caseId: v.caseId, hearingDate: v.hearingDate,
-        hearingOutcome: null, nextHearingDate: v.hearingDate, notes: v.notes || null })}>
-      {(v, set, errs) => (<Row>
-        <Col md={6}><Field label="Case ID" name="caseId" value={v.caseId} onChange={set} error={errs.caseId} required help="Case must be open (not settled/decreed/withdrawn)" /></Col>
-        <Col md={6}><Field label="Hearing Date" name="hearingDate" type="date" value={v.hearingDate} onChange={set} error={errs.hearingDate} required /></Col>
-        <Col md={12}><Field label="Notes" name="notes" value={v.notes} onChange={set} error={errs.notes} /></Col>
-      </Row>)}
-    </FormModal>
-
     <RecordOutcomeModal legalCase={outcomeFor} onClose={() => setOutcomeFor(null)} onSaved={reloadAll} />
   </>);
 }
@@ -232,6 +229,7 @@ function OrdersTab({ canWrite }) {
   const toast = useToast();
   const { data, loading, error, reload } = useAsync(() => legalApi.listOrders(), []);
   const [show, setShow] = useState(false);
+  const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
   const [q, setQ] = useState('');
 
@@ -263,7 +261,12 @@ function OrdersTab({ canWrite }) {
               <td className="text-mono">{o.orderId}</td><td className="text-mono">{o.caseId}</td>
               <td>{titleCase(o.orderType)}</td><td>{date(o.issuedDate)}</td><td>{date(o.executionDeadline)}</td>
               <td><StatusBadge value={o.status} /></td>
-              <td className="text-end">{canWrite && <Button size="sm" variant="light" className="text-danger" onClick={() => setDel(o)}><i className="bi bi-trash" /></Button>}</td>
+              <td className="text-end">{canWrite && (
+                <div className="d-flex gap-1 justify-content-end">
+                  <Button size="sm" variant="light" title="Update status" onClick={() => setEdit(o)}><i className="bi bi-pencil" /></Button>
+                  <Button size="sm" variant="light" className="text-danger" title="Delete" onClick={() => setDel(o)}><i className="bi bi-trash" /></Button>
+                </div>
+              )}</td>
             </tr>
           ))}
         </tbody></Table>
@@ -277,6 +280,16 @@ function OrdersTab({ canWrite }) {
         <Col md={6}><Field label="Order Type" name="orderType" type="select" options={ENUMS.OrderType} value={v.orderType} onChange={set} error={errs.orderType} required /></Col>
         <Col md={6}><Field label="Issued Date" name="issuedDate" type="date" value={v.issuedDate} onChange={set} error={errs.issuedDate} required /></Col>
         <Col md={6}><Field label="Execution Deadline" name="executionDeadline" type="date" value={v.executionDeadline} onChange={set} error={errs.executionDeadline} required /></Col>
+      </Row>)}
+    </FormModal>
+    <FormModal show={!!edit} title={`Update Order ${edit?.orderId || ''}`} submitLabel="Update status"
+      initial={edit ? { status: edit.status } : {}}
+      onClose={() => setEdit(null)} onSaved={reload}
+      onSubmit={(v) => legalApi.updateOrderStatus(edit.orderId, v.status)}>
+      {(v, set, errs) => (<Row>
+        <Col md={12}><Field label="Order Status" name="status" type="select" options={ENUMS.OrderStatus}
+          value={v.status} onChange={set} error={errs.status} required
+          help="Only lawful transitions accepted. Executed or Vacated settles the case." /></Col>
       </Row>)}
     </FormModal>
     <ConfirmDialog show={!!del} title="Delete recovery order" variant="danger" confirmLabel="Delete"

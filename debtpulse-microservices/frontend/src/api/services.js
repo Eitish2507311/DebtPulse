@@ -131,6 +131,7 @@ export const legalApi = {
   listOrders: () => api.get('/legal/orders'),
   getOrder: (id) => api.get(`/legal/orders/${id}`),
   issueOrder: (body) => api.post('/legal/orders', body),
+  updateOrderStatus: (id, status) => api.patch(`/legal/orders/${id}/status`, null, { params: { status } }),
   deleteOrder: (id) => api.delete(`/legal/orders/${id}`),
 };
 
