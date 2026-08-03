@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Tabs, Tab, Button, Row, Col, Dropdown } from 'react-bootstrap';
+import { Tabs, Tab, Button, Row, Col, Dropdown, InputGroup, Form } from 'react-bootstrap';
 import { visitApi, assetVerificationApi } from '../../api/services.js';
 import { usePaged } from '../../hooks/usePaged.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -11,6 +11,22 @@ import Field from '../../components/Field.jsx';
 import { useToast } from '../../components/ToastHost.jsx';
 import { ENUMS } from '../../utils/enums.js';
 import { inr, date, titleCase, today } from '../../utils/format.js';
+
+/** Client-side search box (filters the loaded page) with a clear button. */
+function SearchBar({ value, onChange, placeholder }) {
+  return (
+    <InputGroup size="sm" style={{ maxWidth: 340 }} className="filter-bar">
+      <InputGroup.Text><i className="bi bi-search" /></InputGroup.Text>
+      <Form.Control value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      {value && <Button variant="outline-secondary" onClick={() => onChange('')}><i className="bi bi-x" /></Button>}
+    </InputGroup>
+  );
+}
+
+const matches = (q, ...fields) => {
+  const s = q.trim().toLowerCase();
+  return !s || fields.some((f) => (f || '').toString().toLowerCase().includes(s));
+};
 
 export default function FieldWorkspace() {
   const { role } = useAuth();
@@ -31,6 +47,8 @@ function VisitsTab({ canWrite }) {
   const { page, loading, error, setPage, reload } = usePaged(fetcher);
   const [show, setShow] = useState(false);
   const [complete, setComplete] = useState(null);
+  const [q, setQ] = useState('');
+  const shown = page ? { ...page, content: (page.content || []).filter((r) => matches(q, r.visitId, r.accountId, r.officerId, r.status)) } : page;
 
   const markMissed = async (r) => {
     try { await visitApi.markMissed(r.visitId); toast.success('Visit marked missed'); reload(); }
@@ -54,11 +72,12 @@ function VisitsTab({ canWrite }) {
     ) },
   ];
   return (<>
-    <div className="d-flex justify-content-end mb-2">
+    <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+      <SearchBar value={q} onChange={setQ} placeholder="Search by visit / account / officer ID or status…" />
       {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />Schedule visit</Button>}
     </div>
     <ErrorNote error={error} />
-    <DataTable columns={columns} page={page} loading={loading} onPageChange={setPage} emptyIcon="geo-alt" emptyTitle="No field visits" />
+    <DataTable columns={columns} page={shown} loading={loading} onPageChange={setPage} emptyIcon="geo-alt" emptyTitle="No field visits" />
 
     <FormModal show={show} title="Schedule Field Visit" submitLabel="Schedule"
       initial={{ accountId: '', officerId: '', scheduledDate: today(), nextActionRequired: '' }}
@@ -96,6 +115,8 @@ function AssetTab({ canWrite }) {
   const fetcher = useCallback((p) => assetVerificationApi.list(p), []);
   const { page, loading, error, setPage, reload } = usePaged(fetcher);
   const [show, setShow] = useState(false);
+  const [q, setQ] = useState('');
+  const shown = page ? { ...page, content: (page.content || []).filter((r) => matches(q, r.reportId, r.visitId, r.assetId)) } : page;
 
   const columns = [
     { key: 'reportId', header: 'Report', render: (r) => <span className="text-mono">{r.reportId}</span> },
@@ -106,11 +127,12 @@ function AssetTab({ canWrite }) {
     { key: 'verificationDate', header: 'Verified', render: (r) => date(r.verificationDate) },
   ];
   return (<>
-    <div className="d-flex justify-content-end mb-2">
+    <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+      <SearchBar value={q} onChange={setQ} placeholder="Search by report / visit / asset ID…" />
       {canWrite && <Button size="sm" onClick={() => setShow(true)}><i className="bi bi-plus-lg me-1" />New report</Button>}
     </div>
     <ErrorNote error={error} />
-    <DataTable columns={columns} page={page} loading={loading} onPageChange={setPage} emptyIcon="clipboard-check" emptyTitle="No verification reports" />
+    <DataTable columns={columns} page={shown} loading={loading} onPageChange={setPage} emptyIcon="clipboard-check" emptyTitle="No verification reports" />
     <FormModal show={show} title="Asset Verification Report" submitLabel="Create report"
       initial={{ visitId: '', assetId: '', condition: '', currentLocation: '', realisableValue: '', remarks: '', verificationDate: today() }}
       onClose={() => setShow(false)} onSaved={reload}

@@ -37,7 +37,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/accounts")
-@PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
+// Reads are open to everyone who works the portfolio (managers + field officers included, so field
+// officers can look up asset ids for verification). Write endpoints below narrow this to ADMIN +
+// COLLECTIONS_AGENT via method-level rules.
+@PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT','PORTFOLIO_MANAGER','FIELD_OFFICER')")
 @Tag(name = "Accounts", description = "Delinquent account portfolio management")
 public class AccountController {
 
@@ -75,6 +78,7 @@ public class AccountController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     @Operation(summary = "Create a delinquent account (bucket derived, auto-allocated)")
     public ResponseEntity<DelinquentAccount> create(@Valid @RequestBody CreateAccountRequest req) {
         DelinquentAccount saved = accountService.onboard(req, AuthContext.currentUserId());
@@ -83,6 +87,7 @@ public class AccountController {
     }
 
     @PostMapping(value = "/import/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     @Operation(summary = "Bulk-import accounts from a CSV (loanRef,borrowerName,phone,address,"
             + "principal,overdue,dpd,[branchId,secured,assetType,assetDescription,estimatedValue])")
     public ResponseEntity<Map<String, Object>> importCsv(@RequestPart("file") MultipartFile file) {
@@ -177,6 +182,7 @@ public class AccountController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     public ResponseEntity<DelinquentAccount> update(@PathVariable String id,
                                                     @Valid @RequestBody UpdateAccountRequest req) {
         DelinquentAccount saved = accountService.update(id, req);
@@ -185,6 +191,7 @@ public class AccountController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         accountService.delete(id);
         audit("DELETE", id);
@@ -192,6 +199,7 @@ public class AccountController {
     }
 
     @PatchMapping("/{id}/assign-agent/{agentId}")
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     @Operation(summary = "Assign an account to a collections agent")
     public ResponseEntity<DelinquentAccount> assignAgent(@PathVariable String id,
                                                          @PathVariable String agentId) {
@@ -201,6 +209,7 @@ public class AccountController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT')")
     public ResponseEntity<DelinquentAccount> updateStatus(@PathVariable String id,
                                                           @RequestParam AccountStatus status) {
         DelinquentAccount saved = accountService.updateStatus(id, status);
