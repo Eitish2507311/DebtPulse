@@ -79,7 +79,9 @@ public class AccountController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT','FIELD_OFFICER','PORTFOLIO_MANAGER')")
+    // Any staff role that acts on an account may read it (settlement officers load its outstanding,
+    // legal officers reference it, field officers look up asset ids). Writes stay ADMIN/agent only.
+    @PreAuthorize("hasAnyRole('ADMIN','COLLECTIONS_AGENT','FIELD_OFFICER','PORTFOLIO_MANAGER','SETTLEMENT_OFFICER','LEGAL_OFFICER')")
     public ResponseEntity<DelinquentAccount> getById(@PathVariable String id) {
         return ResponseEntity.ok(accountService.getById(id));
     }
