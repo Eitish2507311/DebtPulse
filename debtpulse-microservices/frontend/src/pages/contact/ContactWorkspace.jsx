@@ -243,18 +243,21 @@ function BorrowerTab({ canWrite }) {
       </>)}
     </FormModal>
 
-    <FormModal show={!!edit} title={`Edit Borrower Contact`} submitLabel="Save changes"
-      initial={edit ? { contactType: edit.contactType, name: edit.name, phone: edit.phone,
+     <FormModal show={!!edit} title={`Edit Borrower Contact`} submitLabel="Save changes"
+      initial={edit ? { accountId:edit.accountId,contactType: edit.contactType, name: edit.name, phone: edit.phone,
         relationship: edit.relationship, status: edit.status } : {}}
       onClose={() => setEdit(null)} onSaved={reloadAll}
       onSubmit={(v) => borrowerContactApi.update(edit.contactRecordId, v)}>
-      {(v, set, errs) => (<Row>
+      {(v, set, errs) => (<>
+        <Field label="Account ID" name="accountId" value={v.accountId} onChange={set} error={errs.accountId} required />
+        <Row>
         <Col md={6}><Field label="Contact Type" name="contactType" type="select" options={ENUMS.BorrowerContactType} value={v.contactType} onChange={set} error={errs.contactType} required /></Col>
         <Col md={6}><Field label="Name" name="name" value={v.name} onChange={set} error={errs.name} required /></Col>
         <Col md={6}><Field label="Phone" name="phone" value={v.phone} onChange={set} error={errs.phone} help="10 digits" required /></Col>
         <Col md={6}><Field label="Relationship" name="relationship" value={v.relationship} onChange={set} error={errs.relationship} /></Col>
         <Col md={6}><Field label="Status" name="status" type="select" options={ENUMS.BorrowerContactStatus} value={v.status} onChange={set} error={errs.status} /></Col>
-      </Row>)}
+      </Row>
+      </>)}
     </FormModal>
 
     <ConfirmDialog show={!!del} title="Delete borrower contact" variant="danger" confirmLabel="Delete"
