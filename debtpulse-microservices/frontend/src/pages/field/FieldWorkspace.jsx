@@ -119,7 +119,8 @@ function AssetTab({ canWrite }) {
   const [assets, setAssets] = useState([]);           // collateral on that visit's account
   const [q, setQ] = useState('');
   const shown = page ? { ...page, content: (page.content || []).filter((r) => matches(q, r.reportId, r.visitId, r.assetId)) } : page;
-  const completed = (visits.data?.content || []).filter((v) => v.status === 'COMPLETED');
+  const verifiedVisitIds = new Set((page?.content || []).map(r => r.visitId));
+  const completed = (visits.data?.content || []).filter((v) => v.status === 'COMPLETED' && !verifiedVisitIds.has(v.visitId));
 
   const openReport = async (visit) => {
     setReportFor(visit); setAssets([]);
